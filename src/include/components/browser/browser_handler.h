@@ -3,6 +3,7 @@
 
 #include <include/cef_client.h>
 #include <include/cef_version.h>
+#include <include/wrapper/cef_message_router.h>
 
 enum CursorType: unsigned char {
     CursorDefault = 0,
@@ -16,6 +17,7 @@ private:
     int textureId;
     unsigned short windowWidth;
     unsigned short windowHeight;
+    CefRefPtr<CefMessageRouterBrowserSide> message_router_;
     
 public:
     BrowserHandler(int textureId, unsigned short width, unsigned short height);
@@ -55,6 +57,10 @@ public:
     void OnDocumentAvailableInMainFrame(CefRefPtr<CefBrowser> browser) override;
     void OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, const CefString &suggested_name, CefRefPtr<CefBeforeDownloadCallback> callback) override;
     void OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, CefRefPtr<CefDownloadItemCallback> callback) override;
+    bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
+                                                  CefRefPtr<CefFrame> frame,
+                                                  CefProcessId source_process,
+                                                  CefRefPtr<CefProcessMessage> message) override;
 };
 
 #endif

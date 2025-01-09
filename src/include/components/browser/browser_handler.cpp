@@ -20,7 +20,7 @@
 #include "config.h"
 #include "appstate.h"
 #include "path.h"
-
+#include "host_func_handler.h"
 BrowserHandler::BrowserHandler(int aTextureId, unsigned short aWidth, unsigned short aHeight) {
     textureId = aTextureId;
     windowWidth = aWidth;
@@ -28,6 +28,10 @@ BrowserHandler::BrowserHandler(int aTextureId, unsigned short aWidth, unsigned s
     cursorState = CursorDefault;
     hasInputFocus = false;
     browserInstance = nullptr;
+    
+    CefMessageRouterConfig config;
+    message_router_ = CefMessageRouterBrowserSide::Create(config);
+    message_router_->AddHandler(new HostFunctionHandler(), false);
 }
 
 BrowserHandler::~BrowserHandler() {
@@ -58,6 +62,11 @@ bool BrowserHandler::DoClose(CefRefPtr<CefBrowser> browser) {
 }
 
 void BrowserHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
+    if (message_router_) {
+        message_router_->RemoveHandler(nullptr);
+        message_router_ = nullptr;
+    }
+    
     textureId = 0;
     browserInstance = nullptr;
     
@@ -229,4 +238,17 @@ void BrowserHandler::OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<
         int percentComplete = fmax(0, static_cast<int>(download_item->GetPercentComplete()));
         AppState::getInstance()->statusbar->setNotice("Downloading... " + std::to_string(percentComplete) + "%");
     }
+}
+
+bool BrowserHandler::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
+                                              CefRefPtr<CefFrame> frame,
+                                              CefProcessId source_process,
+                                              CefRefPtr<CefProcessMessage> message) {
+    // Let the router handle the incoming messages first
+    if (message_router_ && message_router_->OnProcessMessageReceived(browser, frame, source_process, message)) {
+        return true;
+    }
+
+    // Otherwise handle your own IPC or fallback
+    return false;
 }
