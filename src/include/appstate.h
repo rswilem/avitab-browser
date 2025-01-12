@@ -69,6 +69,8 @@ public:
     bool pluginInitialized = false;
     bool hasPower = false;
     bool browserVisible = false;
+    bool hasAvitab = false;
+    XPLMWindowID standaloneWindow;
     Statusbar *statusbar;
     Browser *browser;
     CursorType activeCursor;
@@ -79,7 +81,7 @@ public:
     void checkLatestVersion();
     
     void update();
-    void draw();
+    void draw(XPLMWindowID windowId);
     
     bool updateButtons(float normalizedX, float normalizedY, ButtonState state);
     void registerButton(Button *button);

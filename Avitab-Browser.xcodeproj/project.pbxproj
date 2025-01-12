@@ -62,7 +62,7 @@
 		F6C27DCD2CFBC9F80031DB0B /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = "/Users/ramon/X-Plane 12/Resources/plugins/avitab-browser/mac_x64";
+			dstPath = "/Users/dzou/X-Plane 12/Resources/plugins/avitab-browser/mac_x64";
 			dstSubfolderSpec = 0;
 			files = (
 				F621307A2D11E74E0001E77B /* avitab-browser.xpl in CopyFiles */,

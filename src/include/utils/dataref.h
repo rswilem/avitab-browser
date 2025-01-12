@@ -5,6 +5,7 @@
 #include <variant>
 #include <string>
 #include <XPLMDataAccess.h>
+#include <XPLMDisplay.h>
 
 class Dataref {
 private:
@@ -24,7 +25,7 @@ public:
     static Dataref* getInstance();
 
     void update();
-    bool getMouse(float *normalizedX, float *normalizedY, float windowX = 0, float windowY = 0);
+    bool getMouse(float *normalizedX, float *normalizedY, float windowX = 0, float windowY = 0, XPLMWindowID windowId = 0);
     bool exists(const char *ref);
     template <typename T> T getCached(const char *ref);
     template <typename T> T get(const char *ref);

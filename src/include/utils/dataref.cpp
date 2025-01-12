@@ -37,34 +37,41 @@ void Dataref::update() {
     }
 }
 
-bool Dataref::getMouse(float *normalizedX, float *normalizedY, float windowX, float windowY) {
-    float mouseX = get<float>("sim/graphics/view/click_3d_x_pixels");
-    float mouseY = get<float>("sim/graphics/view/click_3d_y_pixels");
-    int viewHeading = (int)get<float>("sim/graphics/view/view_heading");
-    
-    if (windowX > 0) {
-        if (mouseX < 0 || mouseY < 0) {
-            if (abs(viewHeading - lastViewHeading) > 5) {
-                return false;
+bool Dataref::getMouse(float *normalizedX, float *normalizedY, float windowX, float windowY, XPLMWindowID inWindowId) {
+    if (inWindowId != AppState::getInstance()->standaloneWindow) {
+        float mouseX = get<float>("sim/graphics/view/click_3d_x_pixels");
+        float mouseY = get<float>("sim/graphics/view/click_3d_y_pixels");
+        int viewHeading = (int)get<float>("sim/graphics/view/view_heading");
+        
+        if (windowX > 0) {
+            if (mouseX < 0 || mouseY < 0) {
+                if (abs(viewHeading - lastViewHeading) > 5) {
+                    return false;
+                }
+                mouseX = lastMouseX + (windowX - lastWindowX) / 1.5;
+                mouseY = lastMouseY + (windowY - lastWindowY) / 1.5;
             }
-            mouseX = lastMouseX + (windowX - lastWindowX) / 1.5;
-            mouseY = lastMouseY + (windowY - lastWindowY) / 1.5;
+            else {
+                lastMouseX = mouseX;
+                lastMouseY = mouseY;
+                lastWindowX = windowX;
+                lastWindowY = windowY;
+                lastViewHeading = viewHeading;
+            }
         }
-        else {
-            lastMouseX = mouseX;
-            lastMouseY = mouseY;
-            lastWindowX = windowX;
-            lastWindowY = windowY;
-            lastViewHeading = viewHeading;
+        
+        if (mouseX == -1 || mouseY == -1) {
+            return false;
         }
+        
+        *normalizedX = (mouseX - AppState::getInstance()->tabletDimensions.x) / AppState::getInstance()->tabletDimensions.width;
+        *normalizedY = (mouseY - AppState::getInstance()->tabletDimensions.y) / AppState::getInstance()->tabletDimensions.height;
+    } else {
+        int left, top, right, bottom;
+        XPLMGetWindowGeometry(inWindowId, &left, &top, &right, &bottom);
+        *normalizedX = (windowX - left) / (right - left);
+        *normalizedY = (windowY - bottom) / (top - bottom);
     }
-    
-    if (mouseX == -1 || mouseY == -1) {
-        return false;
-    }
-    
-    *normalizedX = (mouseX - AppState::getInstance()->tabletDimensions.x) / AppState::getInstance()->tabletDimensions.width;
-    *normalizedY = (mouseY - AppState::getInstance()->tabletDimensions.y) / AppState::getInstance()->tabletDimensions.height;
     return !(*normalizedX < -0.1f || *normalizedX > 1.1f || *normalizedY < -0.1f || *normalizedY > 1.1f);
 }
 

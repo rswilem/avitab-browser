@@ -27,7 +27,7 @@ public:
     void destroy();
     void visibilityWillChange(bool becomesVisible);
     void update();
-    void draw();
+    void draw(XPLMWindowID windowId);
     std::string currentUrl();
     void loadUrl(std::string url);
     bool hasInputFocus();

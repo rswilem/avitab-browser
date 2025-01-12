@@ -65,7 +65,7 @@ void Browser::initialize() {
             }
         });
     }
-    else {
+    else if (AppState::getInstance()->hasAvitab) {
         offsetStart = 0;
         offsetEnd = 0.935f;
         
@@ -175,7 +175,7 @@ void Browser::update() {
     }
 }
 
-void Browser::draw() {
+void Browser::draw(XPLMWindowID windowId) {
     if (!textureId) {
         return;
     }
@@ -192,29 +192,66 @@ void Browser::draw() {
     
     XPLMBindTexture2d(textureId, 0);
     
-    const auto& tabletDimensions = AppState::getInstance()->tabletDimensions;
-    int x1 = tabletDimensions.x;
-    int y1 = tabletDimensions.y + tabletDimensions.height * offsetStart;
-    int x2 = x1 + tabletDimensions.width;
-    int y2 = y1 + tabletDimensions.height * (offsetEnd - offsetStart);
-    
-    glBegin(GL_QUADS);
-    float brightness = Dataref::getInstance()->getCached<float>("avitab/brightness");
-    glColor4f(brightness, brightness, brightness, 1.0f);
-    
-    float u = (float)tabletDimensions.browserWidth / tabletDimensions.textureWidth;
-    float v = (float)tabletDimensions.browserHeight / tabletDimensions.textureHeight;
-    
-    glTexCoord2f(0, v);
-    glVertex2f(x1,y1);
-    glTexCoord2f(0, 0);
-    glVertex2f(x1,y2);
-    glTexCoord2f(u, 0);
-    glVertex2f(x2,y2);
-    glTexCoord2f(u, v);
-    glVertex2f(x2,y1);
-    glEnd();
-    
+    if (windowId == nullptr){
+        
+        const auto& tabletDimensions = AppState::getInstance()->tabletDimensions;
+        int x1 = tabletDimensions.x;
+        int y1 = tabletDimensions.y + tabletDimensions.height * offsetStart;
+        int x2 = x1 + tabletDimensions.width;
+        int y2 = y1 + tabletDimensions.height * (offsetEnd - offsetStart);
+        
+        glBegin(GL_QUADS);
+        float brightness = Dataref::getInstance()->getCached<float>("avitab/brightness");
+        glColor4f(brightness, brightness, brightness, 1.0f);
+        
+        float u = (float)tabletDimensions.browserWidth / tabletDimensions.textureWidth;
+        float v = (float)tabletDimensions.browserHeight / tabletDimensions.textureHeight;
+        
+        glTexCoord2f(0, v);
+        glVertex2f(x1,y1);
+        glTexCoord2f(0, 0);
+        glVertex2f(x1,y2);
+        glTexCoord2f(u, 0);
+        glVertex2f(x2,y2);
+        glTexCoord2f(u, v);
+        glVertex2f(x2,y1);
+        glEnd();
+    } else {
+        int left, top, right, bottom;
+
+        // Get the window's current dimensions
+        XPLMGetWindowGeometry(windowId, &left, &top, &right, &bottom);
+        const auto& tabletDimensions = AppState::getInstance()->tabletDimensions;
+        int width = right - left;
+        int height = top - bottom;
+        
+        int x1 = left;
+        int y1 = bottom;
+        int x2 = x1 + width;
+        int y2 = y1 + height;
+        
+        float textureWidth = AppState::getInstance()->hasAvitab ? tabletDimensions.textureWidth : STANDALONE_BROWSER_WIDTH;
+        float textureHeight = AppState::getInstance()->hasAvitab ? tabletDimensions.textureHeight : STANDALONE_BROWSER_HEIGHT;
+        
+        float u = (float)width / textureWidth;
+        float v = (float)height / textureHeight;
+        
+        
+        glBegin(GL_QUADS);
+        float brightness = 1.0f;
+        glColor4f(brightness, brightness, brightness, 1.0f);
+         
+        glTexCoord2f(0, v);
+        glVertex2f(x1,y1);
+        glTexCoord2f(0, 0);
+        glVertex2f(x1,y2);
+        glTexCoord2f(u, 0);
+        glVertex2f(x2,y2);
+        glTexCoord2f(u, v);
+        glVertex2f(x2,y1);
+        glEnd();
+
+    }
     if (backButton) {
         backButton->draw();
     }
@@ -505,7 +542,13 @@ bool Browser::createBrowser() {
     debug("CEF instance for X-Plane 11 has been set up successfully.\n");
 #endif
     
-    handler = CefRefPtr<BrowserHandler>(new BrowserHandler(textureId, AppState::getInstance()->tabletDimensions.browserWidth, AppState::getInstance()->tabletDimensions.browserHeight));
+    handler = CefRefPtr<BrowserHandler>(
+                new BrowserHandler(
+                   textureId,
+                   AppState::getInstance()->hasAvitab ? AppState::getInstance()->tabletDimensions.browserWidth : STANDALONE_BROWSER_WIDTH,
+                   AppState::getInstance()->hasAvitab ? AppState::getInstance()->tabletDimensions.browserHeight : STANDALONE_BROWSER_HEIGHT
+               )
+    );
     
     CefWindowInfo window_info;
 #if LIN
@@ -557,6 +600,6 @@ CefMouseEvent Browser::getMouseEvent(float normalizedX, float normalizedY) {
 
     CefMouseEvent mouseEvent;
     mouseEvent.x = tabletDimensions.browserWidth * normalizedX;
-    mouseEvent.y = tabletDimensions.browserHeight * (1.0f - ((normalizedY - offsetStart) / (offsetEnd - offsetStart)));
+    mouseEvent.y = AppState::getInstance()->hasAvitab? tabletDimensions.browserHeight * (1.0f - ((normalizedY - offsetStart) / (offsetEnd - offsetStart))): tabletDimensions.browserHeight*normalizedY;
     return mouseEvent;
 }
