@@ -263,3 +263,83 @@ cef_return_value_t BrowserHandler::OnBeforeResourceLoad(CefRefPtr<CefBrowser> br
     
     return RV_CONTINUE;
 }
+
+void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) {
+    if (!frame->IsMain()) {
+        return;
+    }
+    
+    const std::string jsCode = R"(
+        (function() {
+            // Prevent double-injecting
+            if (document.getElementById('cefToolbar')) return;
+            
+            // Create container
+            let toolbar = document.createElement('div');
+            toolbar.id = 'cefToolbar';
+            toolbar.style.position = 'fixed';
+            toolbar.style.top = '0';
+            toolbar.style.left = '0';
+            toolbar.style.width = '100%';
+            toolbar.style.zIndex = '9999';
+            toolbar.style.padding = '4px';
+            toolbar.style.fontSize = '14px';
+            toolbar.style.backgroundColor = '#eee';
+            toolbar.style.boxSizing = 'border-box';
+            toolbar.style.display = 'flex';
+            toolbar.style.alignItems = 'center';
+            toolbar.style.gap = '4px';
+
+            // Back button
+            let backBtn = document.createElement('button');
+            backBtn.textContent = '<';
+            backBtn.style.fontSize = '14px';
+            backBtn.style.background = 'black'; // Set the background to black
+            backBtn.style.color = 'white';
+            backBtn.style.width = "20px";
+            backBtn.onclick = function() {
+                history.back();
+            };
+
+            // Forward button
+            let fwdBtn = document.createElement('button');
+            fwdBtn.textContent = '>';
+            fwdBtn.style.fontSize = '14px';
+            fwdBtn.style.background = 'black'; // Set the background to black
+            fwdBtn.style.color = 'white';
+            fwdBtn.style.width = "20px";
+            fwdBtn.onclick = function() {
+                history.forward();
+            };
+
+            // Address bar
+            let addressBar = document.createElement('input');
+            addressBar.type = 'text';
+            addressBar.id = 'cefAddressBar';
+            addressBar.value = window.location.href;
+            addressBar.style.flex = '1';
+            addressBar.style.fontSize = '14px';
+
+            // Enter key to navigate
+            addressBar.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    window.location.href = addressBar.value;
+                }
+            });
+
+            // Add elements to the toolbar
+            toolbar.appendChild(backBtn);
+            toolbar.appendChild(fwdBtn);
+            toolbar.appendChild(addressBar);
+
+            // Insert toolbar at the very top of <body>
+            document.body.insertBefore(toolbar, document.body.firstChild);
+
+            // Add some spacing so the page content isn't hidden behind the toolbar
+            document.body.style.marginTop = '40px';
+        })();
+    )";
+
+    // Execute the script in the context of the main frame
+    frame->ExecuteJavaScript(jsCode, frame->GetURL(), 0);
+}
