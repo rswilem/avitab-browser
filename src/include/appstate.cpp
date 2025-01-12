@@ -300,6 +300,8 @@ forced_language=
 # user_agent: The User-Agent header for the browser
 # Leave empty for the default Chrome UA.
 user_agent=
+# hide_addressbar: Whether the address bar should be hidden or not. Default is false.
+hide_addressbar=
 # framerate: The number of frames per second to render the browser. Saves CPU if set to a lower value.
 # The browser will still sleep / idle when able or not visible.
 # Leave empty for default framerate.
@@ -344,6 +346,7 @@ url_5=
     config.scroll_speed = reader.GetInteger("browser", "scroll_speed", 5);
     config.forced_language = reader.Get("browser", "forced_language", "");
     config.user_agent = reader.Get("browser", "user_agent", "");
+    config.hide_addressbar = reader.GetBoolean("browser", "hide_addressbar", false);
     config.framerate = reader.GetInteger("browser", "framerate", 25);
     config.statusbarIcons.clear();
     for (int i = 1; i <= 5; ++i) {

@@ -75,6 +75,11 @@ void Browser::initialize() {
             if (!AppState::getInstance()->browserVisible) {
                 return;
             }
+         
+            if (!AppState::getInstance()->config.hide_addressbar) {
+                Dataref::getInstance()->executeCommand("AviTab/Home");
+                return;
+            }
             
             bool didGoBack = AppState::getInstance()->browser->goBack();
             if (!didGoBack) {

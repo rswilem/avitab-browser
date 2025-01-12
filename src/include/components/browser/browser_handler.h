@@ -11,6 +11,7 @@ private:
     int textureId;
     unsigned short windowWidth;
     unsigned short windowHeight;
+    void injectAddressBar(CefRefPtr<CefBrowser> browser);
     
 public:
     BrowserHandler(int textureId, unsigned short width, unsigned short height);

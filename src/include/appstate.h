@@ -27,6 +27,7 @@ struct AppConfiguration {
     unsigned char scroll_speed;
     std::string forced_language;
     std::string user_agent;
+    bool hide_addressbar;
     unsigned char framerate;
     struct StatusBarIcon {
         std::string icon;

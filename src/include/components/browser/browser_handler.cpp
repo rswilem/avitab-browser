@@ -132,6 +132,10 @@ void BrowserHandler::OnVirtualKeyboardRequested(CefRefPtr<CefBrowser> browser, T
 
 void BrowserHandler::OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool isLoading, bool canGoBack, bool canGoForward) {
     AppState::getInstance()->statusbar->loading = isLoading;
+    
+    if (!isLoading) {
+        injectAddressBar(browser);
+    }
 }
 
 void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode errorCode, const CefString& errorText, const CefString& failedUrl) {
@@ -269,13 +273,28 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
         return;
     }
     
+    injectAddressBar(browser);
+}
+
+void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
+    if (AppState::getInstance()->config.hide_addressbar) {
+        return;
+    }
+    
     const std::string jsCode = R"(
         (function() {
-            // Prevent double-injecting
-            if (document.getElementById('cefToolbar')) return;
+            if (document.getElementById('cefToolbar')) {
+                document.getElementById('cefBack').style.filter = ')" + std::string(browser->CanGoBack() ? "" : "brightness(1.5) saturate(0)") + R"(';
+                document.getElementById('cefForward').style.filter = ')" + std::string(browser->CanGoForward() ? "" : "brightness(1.5) saturate(0)") + R"(';
+                return;
+            }
+    
+            const chevron = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9.971 13.623"><path fill-opacity=".85" fill="#007AFF" d="M0 6.807c0 .214.088.41.244.576l6.035 5.996a.773.773 0 0 0 .576.234.78.78 0 0 0 .801-.8.83.83 0 0 0-.234-.577l-5.45-5.43 5.45-5.43a.847.847 0 0 0 .234-.575.78.78 0 0 0-.8-.801.773.773 0 0 0-.577.234L.244 6.23A.831.831 0 0 0 0 6.807Z"/></svg>');
+    
+            const refresh = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 13.994 18.271"><path fill-opacity=".85" fill="#999999" d="M0 9.717a6.816 6.816 0 1 0 13.633 0c0-.44-.303-.742-.733-.742-.41 0-.673.302-.673.732 0 2.988-2.422 5.4-5.41 5.4a5.401 5.401 0 0 1-5.41-5.4 5.41 5.41 0 0 1 5.41-5.41c.507 0 .966.02 1.376.107l-2.07 2.032a.663.663 0 0 0-.195.488c0 .4.302.703.683.703.225 0 .381-.078.508-.195l3.086-3.086a.685.685 0 0 0 .205-.508.719.719 0 0 0-.205-.498L7.12.215A.647.647 0 0 0 6.611 0c-.38 0-.683.322-.683.723 0 .185.068.361.185.498L7.91 2.998A5.769 5.769 0 0 0 6.816 2.9 6.81 6.81 0 0 0 0 9.717Z"/></svg>');
             
             // Create container
-            let toolbar = document.createElement('div');
+            const toolbar = document.createElement('div');
             toolbar.id = 'cefToolbar';
             toolbar.style.position = 'fixed';
             toolbar.style.top = '0';
@@ -283,42 +302,47 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
             toolbar.style.width = '100%';
             toolbar.style.zIndex = '9999';
             toolbar.style.padding = '4px';
-            toolbar.style.fontSize = '14px';
-            toolbar.style.backgroundColor = '#eee';
+            toolbar.style.backgroundColor = '#EEE';
             toolbar.style.boxSizing = 'border-box';
             toolbar.style.display = 'flex';
             toolbar.style.alignItems = 'center';
-            toolbar.style.gap = '4px';
+            toolbar.style.gap = '8px';
 
             // Back button
-            let backBtn = document.createElement('button');
-            backBtn.textContent = '<';
-            backBtn.style.fontSize = '14px';
-            backBtn.style.background = 'black'; // Set the background to black
-            backBtn.style.color = 'white';
-            backBtn.style.width = "20px";
+            const backBtn = document.createElement('button');
+            backBtn.id = "cefBack";
+            backBtn.style.background = `url(${chevron}) no-repeat center / contain`
+            backBtn.style.cursor = 'pointer';
+            backBtn.style.width = '14px';
+            backBtn.style.height = '14px';
+            backBtn.style.outline = 'none';
+            backBtn.style.border = 'none';
             backBtn.onclick = function() {
-                history.back();
+                window.history.back();
             };
 
             // Forward button
-            let fwdBtn = document.createElement('button');
-            fwdBtn.textContent = '>';
-            fwdBtn.style.fontSize = '14px';
-            fwdBtn.style.background = 'black'; // Set the background to black
-            fwdBtn.style.color = 'white';
-            fwdBtn.style.width = "20px";
+            const fwdBtn = document.createElement('button');
+            fwdBtn.id = "cefForward";
+            fwdBtn.style.cssText = backBtn.style.cssText;
+            fwdBtn.style.transform = 'scaleX(-1)';
             fwdBtn.onclick = function() {
-                history.forward();
+                window.history.forward();
             };
 
             // Address bar
-            let addressBar = document.createElement('input');
+            const addressBar = document.createElement('input');
             addressBar.type = 'text';
             addressBar.id = 'cefAddressBar';
             addressBar.value = window.location.href;
             addressBar.style.flex = '1';
-            addressBar.style.fontSize = '14px';
+            addressBar.style.fontSize = '12px';
+            addressBar.style.border = 'none';
+            addressBar.style.outline = 'none';
+            addressBar.style.height = '20px';
+            addressBar.style.backgroundColor = "#d2d2d2";
+            addressBar.style.padding = '2px 8px';
+            addressBar.style.borderRadius = '12px';
 
             // Enter key to navigate
             addressBar.addEventListener('keydown', function(e) {
@@ -326,11 +350,24 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
                     window.location.href = addressBar.value;
                 }
             });
+    
+            // Refresh button
+            const refreshButton = document.createElement('button');
+            refreshButton.style.background = `url(${refresh}) no-repeat center / contain`
+            refreshButton.style.cursor = 'pointer';
+            refreshButton.style.width = '14px';
+            refreshButton.style.height = '14px';
+            refreshButton.style.outline = 'none';
+            refreshButton.style.border = 'none';
+            refreshButton.onclick = function() {
+                window.location.reload();
+            };
 
             // Add elements to the toolbar
             toolbar.appendChild(backBtn);
             toolbar.appendChild(fwdBtn);
             toolbar.appendChild(addressBar);
+            toolbar.appendChild(refreshButton);
 
             // Insert toolbar at the very top of <body>
             document.body.insertBefore(toolbar, document.body.firstChild);
@@ -340,6 +377,5 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
         })();
     )";
 
-    // Execute the script in the context of the main frame
-    frame->ExecuteJavaScript(jsCode, frame->GetURL(), 0);
+    browser->GetMainFrame()->ExecuteJavaScript(jsCode, "about:blank", 0);
 }
