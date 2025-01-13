@@ -68,6 +68,7 @@ public:
     AppConfiguration config;
     AircraftVariant aircraftVariant = VariantUnknown;
     bool pluginInitialized = false;
+    bool shouldCaptureClickEvents = false;
     bool hasPower = false;
     bool browserVisible = false;
     Statusbar *statusbar;

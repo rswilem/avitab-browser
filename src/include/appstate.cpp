@@ -21,6 +21,7 @@ AppState::AppState() {
     mainMenuButton = nullptr;
     aircraftVariant = VariantUnknown;
     pluginInitialized = false;
+    shouldCaptureClickEvents = false;
     hasPower = false;
     browserVisible = false;
     statusbar = nullptr;
@@ -103,6 +104,7 @@ void AppState::deinitialize() {
     statusbar->destroy();
     statusbar = nullptr;
     pluginInitialized = false;
+    shouldCaptureClickEvents = false;
     instance = nullptr;
 }
 
@@ -166,14 +168,23 @@ void AppState::update() {
         
     }
     else {
-        hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered");
+        hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
-        mainMenuButton->opacity = AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") ? Dataref::getInstance()->getCached<float>("avitab/brightness") : 0.0f;
+        
+        float brightness = 0.0f;
+        if (AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu")) {
+            brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
+        }
+        mainMenuButton->opacity = brightness;
     }
     
     if (browserVisible && !canBrowserVisible) {
         browser->visibilityWillChange(false);
         browserVisible = false;
+        
+        if (!hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0) {
+            Dataref::getInstance()->executeCommand("AviTab/Home");
+        }
     }
     else if (shouldBrowserVisible && canBrowserVisible) {
         browser->visibilityWillChange(true);
@@ -407,7 +418,10 @@ bool AppState::loadAvitabConfig() {
         return false;
     }
     
-    constexpr float aspectRatio = 0.6f; // Avitab 800x480
+    if (data["panel"].contains("disable_capture_window") && data["panel"]["disable_capture_window"]) {
+        shouldCaptureClickEvents = true;
+    }
+    
     tabletDimensions = {
         data["panel"]["left"],
         data["panel"]["bottom"],
@@ -418,6 +432,7 @@ bool AppState::loadAvitabConfig() {
     };
     
 #if AVITAB_USE_FIXED_ASPECT_RATIO
+    constexpr float aspectRatio = 0.6f; // Avitab 800x480
     float aspectHeight = (float)tabletDimensions.width * aspectRatio;
     tabletDimensions.y += (tabletDimensions.height - aspectHeight) / 2.0f;
     tabletDimensions.height = aspectHeight;

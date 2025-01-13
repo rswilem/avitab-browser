@@ -204,7 +204,7 @@ void Browser::draw() {
     int y2 = y1 + tabletDimensions.height * (offsetEnd - offsetStart);
     
     glBegin(GL_QUADS);
-    float brightness = Dataref::getInstance()->getCached<float>("avitab/brightness");
+    float brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
     glColor4f(brightness, brightness, brightness, 1.0f);
     
     float u = (float)tabletDimensions.browserWidth / tabletDimensions.textureWidth;

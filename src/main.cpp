@@ -59,6 +59,7 @@ int draw(XPLMDrawingPhase inPhase, int inIsBefore, void * inRefcon);
 float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 void menuAction(void* mRef, void* iRef);
 void registerWindow();
+void captureClickEvents(bool enable);
 
 unsigned char pressedKeyCode = 0;
 unsigned char pressedVirtualKeyCode = 0;
@@ -97,6 +98,7 @@ PLUGIN_API void XPluginStop(void) {
     window = nullptr;
     
     destroyCursor();
+    captureClickEvents(false);
     
     AppState::getInstance()->deinitialize();
     debug("Plugin stopped\n");
@@ -127,6 +129,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params)
 
             if (AppState::getInstance()->initialize()) {                
                 registerWindow();
+                captureClickEvents(true);
             }
             break;
             
@@ -273,6 +276,20 @@ int mouseClicked(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus status, 
     return 0;
 }
 
+int capturedMouseClicked(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon) {
+    if (inPhase == xplm_CommandBegin) {
+        mouseClicked(0, -1, -1, xplm_MouseDown, inRefcon);
+    }
+    else if (inPhase == xplm_CommandContinue) {
+        mouseClicked(0, -1, -1, xplm_MouseDrag, inRefcon);
+    }
+    else if (inPhase == xplm_CommandEnd) {
+        mouseClicked(0, -1, -1, xplm_MouseUp, inRefcon);
+    }
+    
+    return 1;
+}
+
 int mouseWheel(XPLMWindowID inWindowID, int x, int y, int wheel, int clicks, void* inRefcon) {
     if (!AppState::getInstance()->browserVisible) {
         return 0;
@@ -390,5 +407,25 @@ void registerWindow() {
     XPLMSetWindowPositioningMode(window, xplm_WindowFullScreenOnMonitor, -1);
     
     XPLMBringWindowToFront(window);
+}
+
+void captureClickEvents(bool enable) {
+    if (!AppState::getInstance()->shouldCaptureClickEvents) {
+        return;
+    }
+    
+    XPLMCommandRef command = XPLMFindCommand("AviTab/click_left");
+    if (!command) {
+        return;
+    }
+    
+    if (enable) {
+        debug("Start capturing AviTab click events.\n");
+        XPLMRegisterCommandHandler(command, capturedMouseClicked, 1, nullptr);
+    }
+    else {
+        debug("Stopped capturing AviTab click events.\n");
+        XPLMUnregisterCommandHandler(command, capturedMouseClicked, 1, nullptr);
+    }
 }
 
