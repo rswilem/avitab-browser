@@ -359,7 +359,7 @@ url_5=
     }
     
     if (!loadAvitabConfig()) {
-        debug("Could not find AviTab.json config file in aircraft directory, or JSON file is malformed. Not loading the plugin for this aircraft.\n");
+        debug("Could not find AviTab.json config file in aircraft directory, or the JSON file is malformed. Not loading the plugin for this aircraft.\n");
         return false;
     }
     
