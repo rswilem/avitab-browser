@@ -66,6 +66,28 @@ void Browser::initialize() {
             }
         });
     }
+    else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
+        offsetStart = -0.11f;
+        offsetEnd = 1.06f;
+        
+        backButton = new Button(Path::getInstance()->pluginDirectory + "/assets/icons/arrow-left-circle.svg");
+        backButton->setPosition(backButton->relativeWidth / 2.0f + 0.005f, 1.092f);
+        backButton->setClickHandler([]() {
+            if (!AppState::getInstance()->browserVisible) {
+                return;
+            }
+         
+            if (!AppState::getInstance()->config.hide_addressbar) {
+                Dataref::getInstance()->executeCommand("AviTab/Home");
+                return;
+            }
+            
+            bool didGoBack = AppState::getInstance()->browser->goBack();
+            if (!didGoBack) {
+                Dataref::getInstance()->executeCommand("AviTab/Home");
+            }
+        });
+    }
     else {
         offsetStart = 0;
         offsetEnd = 0.935f;

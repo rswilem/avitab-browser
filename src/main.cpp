@@ -264,8 +264,16 @@ int mouseClicked(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus status, 
         return 0;
     }
         
-    if (mouseX < 0 || mouseY < 0 || mouseX > 1 || mouseY > 1) {
-        return 0;
+    
+    if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
+        if (mouseX < -0.1f || mouseY < -0.1f || mouseX > 1.1f || mouseY > 1.1f) {
+            return 0;
+        }
+    }
+    else {
+        if (mouseX < 0 || mouseY < 0 || mouseX > 1 || mouseY > 1) {
+            return 0;
+        }
     }
     
      if (AppState::getInstance()->browser->click(status, mouseX, mouseY)) {

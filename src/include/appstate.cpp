@@ -471,8 +471,13 @@ void AppState::determineAircraftVariant() {
     std::string ziboFolder = Path::getInstance()->aircraftDirectory + "/plugins/zibomod";
     if (std::filesystem::exists(ziboFolder) && std::filesystem::is_directory(ziboFolder)) {
         aircraftVariant = VariantZibo738;
+        return;
     }
-    else {
-        aircraftVariant = VariantUnknown;
+    
+    if (Path::getInstance()->aircraftFilename.starts_with("B742_PW_Felis")) {
+        aircraftVariant = VariantFelis742;
+        return;
     }
+    
+    aircraftVariant = VariantUnknown;
 }

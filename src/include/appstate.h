@@ -38,7 +38,8 @@ struct AppConfiguration {
 
 enum AircraftVariant: unsigned char {
     VariantUnknown = 0,
-    VariantZibo738
+    VariantZibo738,
+    VariantFelis742
 };
 
 typedef std::function<void()> DelayedTaskFunc;
