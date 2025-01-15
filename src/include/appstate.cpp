@@ -8,6 +8,7 @@
 #include "dataref.h"
 #include "json.hpp"
 #include <iostream>
+#include <cmath>
 #include <regex>
 #include "json.hpp"
 #include <curl/curl.h>

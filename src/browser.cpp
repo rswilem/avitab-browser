@@ -7,6 +7,7 @@
 #include "drawing.h"
 #include <iomanip>
 #include <sstream>
+#include <cmath>
 #include <chrono>
 #include <filesystem>
 #include <include/cef_app.h>
