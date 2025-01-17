@@ -89,7 +89,7 @@ for platform in $AVAILABLE_PLATFORMS; do
         cp build/$platform/${platform}_x64/${PROJECT_NAME}.xpl build/dist/${platform}_x64/${PROJECT_NAME}.xpl
     fi
 
-    if [ -d "lib/${platform}_x64/dist_${SDK_VERSION}" ]; then
+    if echo $PLATFORMS | grep -q $platform && [ -d "lib/${platform}_x64/dist_${SDK_VERSION}" ]; then
         cp -r lib/${platform}_x64/dist_${SDK_VERSION}/* build/dist/${platform}_x64
     fi
 done
