@@ -20,7 +20,6 @@ AppState::AppState() {
     shouldBrowserVisible = false;
     notification = nullptr;
     mainMenuButton = nullptr;
-    subMenuButton = nullptr;
     aircraftVariant = VariantUnknown;
     pluginInitialized = false;
     shouldCaptureClickEvents = false;
@@ -83,10 +82,10 @@ bool AppState::initialize() {
         mainMenuButton->setPosition(0.604f, 0.43f);
     }
     else if (aircraftVariant == VariantFelis742) {
-        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item-felis.png");
-        mainMenuButton->setPosition(0.775, 0.615);
-        subMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
-        subMenuButton->setPosition(0.2f, 0.568f);
+//        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item-felis.png");
+//        mainMenuButton->setPosition(0.775, 0.615);
+        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
+        mainMenuButton->setPosition(0.2f, 0.568f);
     }
     else {
         mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
@@ -98,14 +97,6 @@ bool AppState::initialize() {
         AppState::getInstance()->showBrowser();
         return true;
     });
-    
-    if (subMenuButton) {
-        subMenuButton->opacity = 0;
-        subMenuButton->setClickHandler([](){
-            AppState::getInstance()->showBrowser();
-            return true;
-        });
-    }
     
     pluginInitialized = true;
     return true;
@@ -194,18 +185,14 @@ void AppState::update() {
         
     }
     else if (aircraftVariant == VariantFelis742) {
-        hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered");
+        hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
         
-        mainMenuButton->opacity = Dataref::getInstance()->getCached<int>("avitab/panel_enabled") ? 0.0f : 1.0f;
-        
-        if (subMenuButton) {
-            float brightness = 0.0f;
-            if (AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/panel_enabled") && Dataref::getInstance()->getCached<int>("avitab/is_in_menu")) {
-                brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
-            }
-            subMenuButton->opacity = brightness;
+        float brightness = 0.0f;
+        if (AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/panel_enabled") && Dataref::getInstance()->getCached<int>("avitab/is_in_menu")) {
+            brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
         }
+        mainMenuButton->opacity = brightness;
     }
     else {
         hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
@@ -256,9 +243,6 @@ void AppState::draw() {
     }
     
     mainMenuButton->draw();
-    if (subMenuButton) {
-        subMenuButton->draw();
-    }
     statusbar->draw();
     
     if (browserVisible || shouldBrowserVisible) {

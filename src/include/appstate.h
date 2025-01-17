@@ -66,7 +66,6 @@ private:
     std::vector<Button *> buttons;
     Notification *notification;
     Button *mainMenuButton;
-    Button *subMenuButton;
     bool loadAvitabConfig();
     bool fileExists(std::string filename);
     void determineAircraftVariant();
