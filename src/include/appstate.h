@@ -34,12 +34,18 @@ struct AppConfiguration {
         std::string url;
     };
     std::vector<StatusBarIcon> statusbarIcons;
+#if DEBUG
+    float debug_value_1;
+    float debug_value_2;
+    float debug_value_3;
+#endif
 };
 
 enum AircraftVariant: unsigned char {
     VariantUnknown = 0,
     VariantZibo738,
-    VariantFelis742
+    VariantFelis742,
+    VariantLevelUp737
 };
 
 typedef std::function<void()> DelayedTaskFunc;
@@ -60,6 +66,7 @@ private:
     std::vector<Button *> buttons;
     Notification *notification;
     Button *mainMenuButton;
+    Button *subMenuButton;
     bool loadAvitabConfig();
     bool fileExists(std::string filename);
     void determineAircraftVariant();
@@ -89,6 +96,7 @@ public:
     void unregisterButton(Button *button);
     
     void showBrowser(std::string url = "");
+    void hideBrowser();
     void showNotification(Notification *notification);
     void executeDelayed(DelayedTaskFunc func, float delay);
     bool loadConfig(bool isReloading = true);

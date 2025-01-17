@@ -57,57 +57,76 @@ void Browser::initialize() {
         backButton->setPosition(0.15f, -0.019f);
         backButton->setClickHandler([]() {
             if (!AppState::getInstance()->browserVisible) {
-                return;
+                return false;
             }
             
             bool didGoBack = AppState::getInstance()->browser->goBack();
             if (!didGoBack) {
                 Dataref::getInstance()->executeCommand("laminar/B738/tab/home");
             }
+            
+            return true;
+        });
+    }
+    else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
+        offsetStart = 0.05f;
+        offsetEnd = 1.0f;
+        
+        backButton = new Button(0.27f, 0.10f);
+        backButton->setPosition(0.15f, -0.014f);
+        backButton->setClickHandler([]() {
+            if (!AppState::getInstance()->browserVisible) {
+                return false;
+            }
+            
+            bool didGoBack = AppState::getInstance()->browser->goBack();
+            if (!didGoBack) {
+                Dataref::getInstance()->executeCommand("laminar/B738/tab/home");
+            }
+            
+            return true;
         });
     }
     else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
         offsetStart = -0.11f;
         offsetEnd = 1.06f;
         
-        backButton = new Button(Path::getInstance()->pluginDirectory + "/assets/icons/arrow-left-circle.svg");
-        backButton->setPosition(backButton->relativeWidth / 2.0f + 0.005f, 1.092f);
+        backButton = backButton = new Button(0.27f, 0.05);
+        backButton->setPosition(0.5f, 1.092f);
         backButton->setClickHandler([]() {
             if (!AppState::getInstance()->browserVisible) {
-                return;
+                return false;
             }
          
-            if (!AppState::getInstance()->config.hide_addressbar) {
-                Dataref::getInstance()->executeCommand("AviTab/Home");
-                return;
-            }
+            AppState::getInstance()->browserVisible = false;
+            Dataref::getInstance()->executeCommand("AviTab/Home");
             
-            bool didGoBack = AppState::getInstance()->browser->goBack();
-            if (!didGoBack) {
-                Dataref::getInstance()->executeCommand("AviTab/Home");
-            }
+            // Intentionally return false so commands bubble up to the airplane.
+            return false;
         });
     }
     else {
         offsetStart = 0;
         offsetEnd = 0.935f;
         
-        backButton = new Button(Path::getInstance()->pluginDirectory + "/assets/icons/arrow-left-circle.svg");
+        backButton = new Button(Path::getInstance()->pluginDirectory + (AppState::getInstance()->config.hide_addressbar ? "/assets/icons/arrow-left-circle.svg" : "/assets/icons/x-circle.svg"));
         backButton->setPosition(backButton->relativeWidth / 2.0f + 0.01f, 0.967f);
         backButton->setClickHandler([]() {
             if (!AppState::getInstance()->browserVisible) {
-                return;
+                return false;
             }
          
             if (!AppState::getInstance()->config.hide_addressbar) {
                 Dataref::getInstance()->executeCommand("AviTab/Home");
-                return;
+                return true;
             }
             
             bool didGoBack = AppState::getInstance()->browser->goBack();
             if (!didGoBack) {
                 Dataref::getInstance()->executeCommand("AviTab/Home");
             }
+            
+            return true;
         });
     }
     
@@ -253,12 +272,20 @@ void Browser::mouseMove(float normalizedX, float normalizedY) {
         return;
     }
     
+    if (normalizedX < 0 || normalizedX > 1 || normalizedY < offsetStart || normalizedY > offsetEnd) {
+        return;
+    }
+    
     CefMouseEvent mouseEvent = getMouseEvent(normalizedX, normalizedY);
     handler->browserInstance->GetHost()->SendMouseMoveEvent(mouseEvent, false);
 }
 
  bool Browser::click(XPLMMouseStatus status, float normalizedX, float normalizedY) {
      if (!textureId || !handler || !handler->browserInstance) {
+         return false;
+     }
+     
+     if (normalizedX < 0 || normalizedX > 1 || normalizedY < offsetStart || normalizedY > offsetEnd) {
          return false;
      }
     
@@ -283,6 +310,10 @@ void Browser::mouseMove(float normalizedX, float normalizedY) {
 
 void Browser::scroll(float normalizedX, float normalizedY, int clicks, bool horizontal = false) {
     if (!textureId || !handler || !handler->browserInstance) {
+        return;
+    }
+    
+    if (normalizedX < 0 || normalizedX > 1 || normalizedY < offsetStart || normalizedY > offsetEnd) {
         return;
     }
     
@@ -523,6 +554,7 @@ bool Browser::createBrowser() {
     CefString(&settings.framework_dir_path) = Path::getInstance()->pluginDirectory + "/mac_x64/Chromium Embedded Framework.framework";
     CefString(&settings.browser_subprocess_path) = Path::getInstance()->pluginDirectory + "/mac_x64/cefclient Helper.app/Contents/MacOS/cefclient Helper";
 #elif LIN
+    CefMainArgs main_args;
 #endif
     
     debug("Initializing a new CEF instance for X-Plane 11...\n");

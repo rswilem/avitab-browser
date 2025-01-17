@@ -24,6 +24,14 @@ void Statusbar::initialize() {
         spinnerImage->setPosition(0.875f, 1.0f);
         x = 0.79f;
     }
+    else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
+        spinnerImage->setPosition(0.88f, 1.092f);
+        x = 0.7f;
+    }
+    else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
+        spinnerImage->setPosition(0.88f, 1.025f);
+        x = 0.78f;
+    }
     else {
         spinnerImage->setPosition(0.54f, 0.967f);
         x = 0.9f;
@@ -35,12 +43,22 @@ void Statusbar::initialize() {
         if (AppState::getInstance()->aircraftVariant == VariantZibo738) {
             button->setPosition(x, 1.0f);
         }
+        else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
+            button->setPosition(x, 1.092f);
+        }
+        else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
+            button->setPosition(x, 1.025f);
+        }
         else {
             button->setPosition(x, 0.967f);
         }
-        button->setClickHandler([&icon]() { AppState::getInstance()->showBrowser(icon.url); });
+        button->setClickHandler([&icon]() { AppState::getInstance()->showBrowser(icon.url); return true; });
         statusbarButtons.push_back(button);
         x -= button->relativeWidth + 0.005f;
+    }
+    
+    if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
+        x = 0.3f;
     }
 }
 
@@ -90,7 +108,16 @@ void Statusbar::draw() {
     
     if (!activeTabTitle.empty()) {
         glColor4f(1.0f, 1.0f, 1.0f, 0.2f);
-        float y = AppState::getInstance()->aircraftVariant == VariantZibo738 ? 1.0f : 0.967f;
+        float y = 0.967f;
+        if (AppState::getInstance()->aircraftVariant == VariantZibo738) {
+            y = 1.0f;
+        }
+        else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
+            y = 1.092f;
+        }
+        else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
+            y = 1.025f;
+        }
         activeTabButton->setPosition(x - (activeTabButton->relativeWidth / 2.0f) - 0.005f, y);
         
         Drawing::DrawRoundedRect(x - activeTabButton->relativeWidth - 0.005f, y - 0.015f, x - 0.005f, y + 0.015f, 4.0f);
@@ -118,6 +145,7 @@ void Statusbar::setActiveTab(std::string title) {
         activeTabButton = new Button(textWidth, 0.03f);
         activeTabButton->setClickHandler([](){
             AppState::getInstance()->showBrowser();
+            return true;
         });
     }
     else {

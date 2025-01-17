@@ -37,7 +37,7 @@ bool Button::handleState(float normalizedX, float normalizedY, ButtonState state
         if (mouseY >= (y - halfHeight) && mouseY <= (y + halfHeight)) {
             if (state == kButtonClick) {
                 if (callback) {
-                    callback();
+                    return callback();
                 }
             }
             
@@ -51,3 +51,45 @@ bool Button::handleState(float normalizedX, float normalizedY, ButtonState state
 void Button::setClickHandler(ButtonClickHandlerFunc cb) {
     callback = cb;
 }
+
+#if DEBUG
+void Button::draw() {
+    if (!debugEnabled) {
+        Image::draw();
+        return;
+    }
+    
+    XPLMSetGraphicsState(
+                         0, // No fog, equivalent to glDisable(GL_FOG);
+                         0, // One texture, equivalent to glEnable(GL_TEXTURE_2D);
+                         0, // No lighting, equivalent to glDisable(GL_LIGHT0);
+                         0, // No alpha testing, e.g glDisable(GL_ALPHA_TEST);
+                         1, // Use alpha blending, e.g. glEnable(GL_BLEND);
+                         0, // No depth read, e.g. glDisable(GL_DEPTH_TEST);
+                         0 // No depth write, e.g. glDepthMask(GL_FALSE);
+    );
+    
+    unsigned short x1 = AppState::getInstance()->tabletDimensions.x + x;
+    unsigned short y1 = AppState::getInstance()->tabletDimensions.y + y;
+    
+    x1 -= pixelsWidth / 2.0f;
+    y1 -= pixelsHeight / 2.0f;
+    
+    glBegin(GL_QUADS);
+    glColor4f(1, 0, 0, 0.5f);
+    
+    glTexCoord2f(0, 1);
+    glVertex2f(x1, y1);
+    
+    glTexCoord2f(0, 0);
+    glVertex2f(x1, y1 + pixelsHeight);
+    
+    glTexCoord2f(1, 0);
+    glVertex2f(x1 + pixelsWidth, y1 + pixelsHeight);
+    
+    glTexCoord2f(1, 1);
+    glVertex2f(x1 + pixelsWidth, y1);
+    
+    glEnd();
+}
+#endif

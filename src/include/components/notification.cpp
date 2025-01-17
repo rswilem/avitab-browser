@@ -23,6 +23,7 @@ Notification::Notification(std::string aTitle, std::string body) {
     dismissButton = new Button(0.3f, 0.05f);
     dismissButton->setClickHandler([]() {
         AppState::getInstance()->showNotification(nullptr);
+        return true;
     });
     
     x = 0.5f;

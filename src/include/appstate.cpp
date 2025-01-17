@@ -20,6 +20,7 @@ AppState::AppState() {
     shouldBrowserVisible = false;
     notification = nullptr;
     mainMenuButton = nullptr;
+    subMenuButton = nullptr;
     aircraftVariant = VariantUnknown;
     pluginInitialized = false;
     shouldCaptureClickEvents = false;
@@ -77,6 +78,16 @@ bool AppState::initialize() {
         mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item-zibo.png");
         mainMenuButton->setPosition(0.604f, 0.4f);
     }
+    else if (aircraftVariant == VariantLevelUp737) {
+        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item-levelup737.png");
+        mainMenuButton->setPosition(0.604f, 0.43f);
+    }
+    else if (aircraftVariant == VariantFelis742) {
+        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item-felis.png");
+        mainMenuButton->setPosition(0.775, 0.615);
+        subMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
+        subMenuButton->setPosition(0.2f, 0.568f);
+    }
     else {
         mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
         mainMenuButton->setPosition(0.2f, 0.568f);
@@ -85,7 +96,16 @@ bool AppState::initialize() {
     mainMenuButton->opacity = 0;
     mainMenuButton->setClickHandler([](){
         AppState::getInstance()->showBrowser();
+        return true;
     });
+    
+    if (subMenuButton) {
+        subMenuButton->opacity = 0;
+        subMenuButton->setClickHandler([](){
+            AppState::getInstance()->showBrowser();
+            return true;
+        });
+    }
     
     pluginInitialized = true;
     return true;
@@ -156,17 +176,36 @@ void AppState::update() {
     }
     
     bool canBrowserVisible = false;
-    if (aircraftVariant == VariantZibo738) {
+    if (aircraftVariant == VariantZibo738 || aircraftVariant == VariantLevelUp737) {
         hasPower = Dataref::getInstance()->getCached<int>("laminar/B738/tab/power") == 1 && Dataref::getInstance()->getCached<int>("laminar/B738/tab/boot_active") == 0;
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("laminar/B738/tab/menu_page") == 8;
 
         if (Dataref::getInstance()->getCached<int>("laminar/B738/tab/menu_page") == 11 && !Dataref::getInstance()->getCached<int>("avitab/panel_enabled")) {
-            mainMenuButton->opacity = Dataref::getInstance()->getCached<int>("laminar/B738/tab/efb_night_mode") ? 0.4 : 0.9;
+            if (aircraftVariant == VariantLevelUp737) {
+                mainMenuButton->opacity = 1.0f;
+            }
+            else {
+                mainMenuButton->opacity = Dataref::getInstance()->getCached<int>("laminar/B738/tab/efb_night_mode") ? 0.4 : 0.9;
+            }
         }
         else {
             mainMenuButton->opacity = 0;
         }
         
+    }
+    else if (aircraftVariant == VariantFelis742) {
+        hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered");
+        canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
+        
+        mainMenuButton->opacity = Dataref::getInstance()->getCached<int>("avitab/panel_enabled") ? 0.0f : 1.0f;
+        
+        if (subMenuButton) {
+            float brightness = 0.0f;
+            if (AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/panel_enabled") && Dataref::getInstance()->getCached<int>("avitab/is_in_menu")) {
+                brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
+            }
+            subMenuButton->opacity = brightness;
+        }
     }
     else {
         hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
@@ -217,6 +256,9 @@ void AppState::draw() {
     }
     
     mainMenuButton->draw();
+    if (subMenuButton) {
+        subMenuButton->draw();
+    }
     statusbar->draw();
     
     if (browserVisible || shouldBrowserVisible) {
@@ -254,7 +296,7 @@ void AppState::showBrowser(std::string url) {
     }
     
     if (!browserVisible) {
-        if (aircraftVariant == VariantZibo738) {
+        if (aircraftVariant == VariantZibo738 || aircraftVariant == VariantLevelUp737) {
             Dataref::getInstance()->executeCommand("laminar/B738/tab/home");
             Dataref::getInstance()->executeCommand("laminar/B738/tab/spec");
         }
@@ -360,6 +402,11 @@ url_5=
     config.user_agent = reader.Get("browser", "user_agent", "");
     config.hide_addressbar = reader.GetBoolean("browser", "hide_addressbar", false);
     config.framerate = reader.GetInteger("browser", "framerate", 25);
+#if DEBUG
+    config.debug_value_1 = reader.GetReal("debug", "debug_value_1", 0.0f);
+    config.debug_value_2 = reader.GetReal("debug", "debug_value_2", 0.0f);
+    config.debug_value_3 = reader.GetReal("debug", "debug_value_3", 0.0f);
+#endif
     config.statusbarIcons.clear();
     for (int i = 1; i <= 5; ++i) {
         std::string icon = reader.Get("statusbar", "icon_" + std::to_string(i), "globe");
@@ -465,6 +512,12 @@ bool AppState::fileExists(std::string filename) {
 
 void AppState::determineAircraftVariant() {
     if (Path::getInstance()->aircraftDirectory.empty()) {
+        return;
+    }
+    
+    std::string levelupTextFile = Path::getInstance()->aircraftDirectory + "/LU & Zibo Version.txt";
+    if (std::filesystem::exists(levelupTextFile)) {
+        aircraftVariant = VariantLevelUp737;
         return;
     }
     
