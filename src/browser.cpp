@@ -41,7 +41,7 @@ Browser::Browser() {
     lastGpsUpdateTime = 0.0f;
     backButton = nullptr;
     handler = nullptr;
-    pendingUrl = "";
+    currentUrl = "";
 }
 
 void Browser::initialize() {
@@ -153,6 +153,18 @@ void Browser::initialize() {
     
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    
+    currentUrl = AppState::getInstance()->config.homepage;
+    Dataref::getInstance()->bind<std::string>("avitab_browser/url", &currentUrl, true, [this](void *valuePtr) {
+        std::string newUrl = std::string(static_cast<const char *>(valuePtr));
+        
+        if (!newUrl.starts_with("http")) {
+            return false;
+        }
+        
+        loadUrl(newUrl);
+        return true;
+    });
 }
 
 void Browser::destroy() {
@@ -322,26 +334,15 @@ void Browser::scroll(float normalizedX, float normalizedY, int clicks, bool hori
     handler->browserInstance->GetHost()->SendMouseWheelEvent(mouseEvent, horizontal ? clicks : 0, horizontal ? 0 : clicks);
 }
 
-std::string Browser::currentUrl() {
-    if (!textureId || !handler) {
-        return "";
-    }
-    
-    return handler->browserInstance->GetMainFrame()->GetURL().ToString();
-}
-
 void Browser::loadUrl(std::string url) {
     if (!textureId || !handler) {
-        pendingUrl = url;
+        currentUrl = url;
         return;
     }
     
+    currentUrl = url;
     if (handler->browserInstance) {
         handler->browserInstance->GetMainFrame()->LoadURL(url);
-        pendingUrl = "";
-    }
-    else {
-        pendingUrl = url;
     }
 }
 
@@ -565,7 +566,7 @@ bool Browser::createBrowser() {
     debug("CEF instance for X-Plane 11 has been set up successfully.\n");
 #endif
     
-    handler = CefRefPtr<BrowserHandler>(new BrowserHandler(textureId, AppState::getInstance()->tabletDimensions.browserWidth, AppState::getInstance()->tabletDimensions.browserHeight));
+    handler = CefRefPtr<BrowserHandler>(new BrowserHandler(textureId, &currentUrl, AppState::getInstance()->tabletDimensions.browserWidth, AppState::getInstance()->tabletDimensions.browserHeight));
     
     CefWindowInfo window_info;
 #if LIN
@@ -575,12 +576,10 @@ bool Browser::createBrowser() {
 #endif
     //window_info.shared_texture_enabled
     window_info.windowless_rendering_enabled = true;
-    bool browserCreated = CefBrowserHost::CreateBrowser(window_info, handler, !pendingUrl.empty() ? pendingUrl : AppState::getInstance()->config.homepage, browser_settings, nullptr, request_context);
+    bool browserCreated = CefBrowserHost::CreateBrowser(window_info, handler, currentUrl, browser_settings, nullptr, request_context);
     if (!browserCreated) {
         AppState::getInstance()->showNotification(new Notification("Error creating browser", "An error occured while starting the browser.\nPlease verify if there are any updates for the " FRIENDLY_NAME " plugin and try again."));
     }
-    
-    pendingUrl = "";
     
     return true;
 }

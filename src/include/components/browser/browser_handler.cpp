@@ -21,8 +21,9 @@
 #include "appstate.h"
 #include "path.h"
 
-BrowserHandler::BrowserHandler(int aTextureId, unsigned short aWidth, unsigned short aHeight) {
+BrowserHandler::BrowserHandler(int aTextureId, std::string* aCurrentUrl, unsigned short aWidth, unsigned short aHeight) {
     textureId = aTextureId;
+    currentUrl = aCurrentUrl;
     windowWidth = aWidth;
     windowHeight = aHeight;
     cursorState = CursorDefault;
@@ -135,6 +136,7 @@ void BrowserHandler::OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool is
     
     if (!isLoading) {
         injectAddressBar(browser);
+        *currentUrl = browser->GetMainFrame()->GetURL().ToString();
     }
 }
 

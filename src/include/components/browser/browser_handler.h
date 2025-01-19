@@ -9,12 +9,13 @@ class BrowserHandler : public CefClient, public CefPermissionHandler, public Cef
 private:
     IMPLEMENT_REFCOUNTING(BrowserHandler);
     int textureId;
+    std::string *currentUrl;
     unsigned short windowWidth;
     unsigned short windowHeight;
     void injectAddressBar(CefRefPtr<CefBrowser> browser);
     
 public:
-    BrowserHandler(int textureId, unsigned short width, unsigned short height);
+    BrowserHandler(int textureId, std::string* currentUrl, unsigned short width, unsigned short height);
     ~BrowserHandler();
     
     bool hasInputFocus;

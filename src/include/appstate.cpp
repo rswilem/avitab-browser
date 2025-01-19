@@ -98,6 +98,11 @@ bool AppState::initialize() {
         return true;
     });
     
+    Dataref::getInstance()->bind<bool>("avitab_browser/visible", &browserVisible);
+    Dataref::getInstance()->createCommand("avitab_browser/toggle", "Show or hide the AviTab Browser in the 3D cockpit", [this](XPLMCommandPhase inPhase) {
+        AppState::getInstance()->showBrowser();
+    });
+    
     pluginInitialized = true;
     return true;
 }
@@ -106,6 +111,8 @@ void AppState::deinitialize() {
     if (!pluginInitialized) {
         return;
     }
+    
+    Dataref::getInstance()->destroyAllBindings();
     
     buttons.clear();
     notification = nullptr;
@@ -412,7 +419,7 @@ url_5=
         statusbar->initialize();
         
         if (browser && browserVisible) {
-            std::string url = browser->currentUrl();
+            std::string url = std::string(browser->currentUrl.c_str());
             if (!url.empty()) {
                 browser->visibilityWillChange(false);
                 browserVisible = false;

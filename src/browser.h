@@ -16,19 +16,20 @@ private:
     float lastGpsUpdateTime;
     Button *backButton;
     CefRefPtr<BrowserHandler> handler;
-    std::string pendingUrl;
     bool createBrowser();
     void updateGPSLocation();
     CefMouseEvent getMouseEvent(float normalizedX, float normalizedY);
     
 public:
     Browser();
+    
+    std::string currentUrl;
+    
     void initialize();
     void destroy();
     void visibilityWillChange(bool becomesVisible);
     void update();
     void draw();
-    std::string currentUrl();
     void loadUrl(std::string url);
     bool hasInputFocus();
     void setFocus(bool focus);

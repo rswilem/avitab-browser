@@ -8,6 +8,10 @@ using namespace std;
 
 Dataref *Dataref::instance = nullptr;
 
+int handleCommandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon) {
+    return Dataref::getInstance()->commandCallback(inCommand, inPhase, inRefcon);
+}
+
 Dataref::Dataref() {
     lastMouseX = 0.0f;
     lastMouseY = 0.0f;
@@ -26,6 +30,112 @@ Dataref* Dataref::getInstance() {
     }
     
     return instance;
+}
+
+template void Dataref::bind<int>(const char* ref, int* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::bind<bool>(const char* ref, bool* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::bind<float>(const char* ref, float* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::bind<std::string>(const char* ref, std::string* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template <typename T>
+void Dataref::bind(const char* ref, T *value, bool writable, BoundRefChangeCallback changeCallback) {
+    unbind(ref);
+    
+    XPLMDataRef handle = nullptr;
+    boundRefs[ref] = {
+        handle,
+        value,
+        changeCallback
+    };
+    
+    if constexpr ((std::is_same<T, int>::value) || (std::is_same<T, bool>::value)) {
+        handle = XPLMRegisterDataAccessor(ref,
+                                          xplmType_Int,
+                                          writable ? 1 : 0,
+                                          [](void* inRefcon) -> int {
+                                            return *static_cast<T*>(inRefcon);
+                                          },
+                                          [](void* inRefcon, int inValue) {
+                                            BoundRef* info = static_cast<BoundRef*>(inRefcon);
+                                            T* valuePtr = static_cast<T*>(info->valuePointer);
+            
+                                            if (info->changeCallback) {
+                                                if (info->changeCallback(&inValue)) {
+                                                    *valuePtr = inValue;
+                                                }
+                                            }
+                                            else {
+                                                *valuePtr = inValue;
+                                            }
+                                          },
+                                          nullptr, nullptr, // Float
+                                          nullptr, nullptr, // Double
+                                          nullptr, nullptr, // Int array
+                                          nullptr, nullptr, // Float array
+                                          nullptr, nullptr, // Binary
+                                          value, // Read refcon
+                                          &boundRefs[ref]);  // Write refcon
+    }
+    else if constexpr (std::is_same<T, float>::value) {
+        
+    }
+    else if constexpr (std::is_same<T, std::string>::value) {
+        handle = XPLMRegisterDataAccessor(ref,
+                                          xplmType_Data,
+                                          writable ? 1 : 0,
+                                          nullptr, nullptr, // Int
+                                          nullptr, nullptr, // Float
+                                          nullptr, nullptr, // Double
+                                          nullptr, nullptr, // Int array
+                                          nullptr, nullptr, // Float array
+                                          [](void* inRefcon, void* outValue, int inOffset, int inMaxLength) -> int {
+                                            T value = *static_cast<T*>(inRefcon);
+                                            strncpy(static_cast<char*>(outValue), value.c_str(), inMaxLength);
+                                            return static_cast<int>(value.length());
+                                          },
+                                          [](void* inRefcon, void* inValue, int inOffset, int inMaxLength) {
+                                            BoundRef* info = static_cast<BoundRef*>(inRefcon);
+                                            T* valuePtr = static_cast<T*>(info->valuePointer);
+                                            
+                                            if (info->changeCallback) {
+                                                if (info->changeCallback(inValue)) {
+                                                    *valuePtr = (const char *)inValue;
+                                                }
+                                            }
+                                            else {
+                                                *valuePtr = (const char *)inValue;
+                                            }
+                                          },
+                                          value, // Read refcon
+                                          &boundRefs[ref]);  // Write refcon
+    }
+    
+    boundRefs[ref].handle = handle;
+}
+
+void Dataref::destroyAllBindings(){
+    for (auto& [key, ref] : boundRefs) {
+        XPLMUnregisterDataAccessor(ref.handle);
+    }
+    boundRefs.clear();
+    
+    for (auto& [key, ref] : boundCommands) {
+        XPLMUnregisterCommandHandler(ref.handle, handleCommandCallback, 1, nullptr);
+    }
+    boundCommands.clear();
+}
+
+void Dataref::unbind(const char *ref) {
+    auto it = boundRefs.find(ref);
+    if (it != boundRefs.end()) {
+        XPLMUnregisterDataAccessor(it->second.handle);
+        boundRefs.erase(it);
+    }
+    
+    auto it2 = boundCommands.find(ref);
+    if (it2 != boundCommands.end()) {
+        XPLMUnregisterCommandHandler(it2->second.handle, handleCommandCallback, 1, nullptr);
+        boundCommands.erase(it2);
+    }
 }
 
 void Dataref::update() {
@@ -187,16 +297,45 @@ void Dataref::executeCommand(const char *command) {
     XPLMCommandOnce(ref);
 }
 
-void Dataref::createCommand() {
-    //XPLMCreateCommand
-    //https://developer.x-plane.com/sdk/XPLMCreateCommand/
+void Dataref::bindCommand(const char *command, CommandExecutedCallback callback) {
+    XPLMCommandRef handle = XPLMFindCommand(command);
+    if (!handle) {
+        return;
+    }
+    
+    boundCommands[command] = {
+        handle,
+        callback
+    };
 }
 
-//void Dataref::shareCallback(void* inRefcon) {
-//    
-//}
+void Dataref::createCommand(const char *command, const char *description, CommandExecutedCallback callback) {
+    XPLMCommandRef handle = XPLMCreateCommand(command, description);
+    if (!handle) {
+        return;
+    }
+    
+    auto it = boundCommands.find(command);
+    if (it != boundCommands.end()) {
+        XPLMUnregisterCommandHandler(handle, handleCommandCallback, 1, nullptr);
+    }
+    
+    boundCommands[command] = {
+        handle,
+        callback
+    };
+    
+    XPLMRegisterCommandHandler(handle, handleCommandCallback, 1, nullptr);
+}
 
-void Dataref::shareData() {
-    // https://developer.x-plane.com/sdk/XPLMDataAccess/#XPLMShareData
-    //XPLMShareData("avitab-browser/website/url", xplmType_Data, shareCallback, nullptr);
+int Dataref::commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon) {
+    for (const auto& entry : boundCommands) {
+        XPLMCommandRef handle = entry.second.handle;
+        if (inCommand == handle) {
+            entry.second.callback(inPhase);
+            break;
+        }
+    }
+    
+    return 1;
 }
