@@ -46,6 +46,13 @@ if [ -z "$CLEAN_BUILD" ]; then
     CLEAN_BUILD="n"
 fi
 
+echo "Create additional files for the plugin? (y/n):"
+read EXTRA_FILES
+
+if [ -z "$EXTRA_FILES" ]; then
+    EXTRA_FILES="n"
+fi
+
 if [ "$CLEAN_BUILD" = "y" ]; then
     echo "Cleaning build directories..."
     if [ -d "build" ]; then
@@ -92,6 +99,11 @@ for platform in $AVAILABLE_PLATFORMS; do
     if echo $PLATFORMS | grep -q $platform && [ -d "lib/${platform}_x64/dist_${SDK_VERSION}" ]; then
         cp -r lib/${platform}_x64/dist_${SDK_VERSION}/* build/dist/${platform}_x64
     fi
+
+    if echo $PLATFORMS | grep -q $platform && [ -d "lib/${platform}_x64/dist_extra_${SDK_VERSION}" ] && [ "$EXTRA_FILES" = "y" ]; then
+        mkdir -p build/extra_${platform}/${platform}_x64
+        cp -r lib/${platform}_x64/dist_extra_${SDK_VERSION}/* build/extra_${platform}/${platform}_x64
+    fi
 done
 
 cp -r assets build/dist
@@ -103,13 +115,26 @@ cd build
 mv dist $PROJECT_NAME
 
 if [ $SDK_VERSION -lt 400 ]; then
-    VERSION=$VERSION-XP11
+    XPLANE_VERSION=XP11
 else
-    VERSION=$VERSION-XP12
+    XPLANE_VERSION=XP12
 fi
+
+VERSION=$VERSION-$XPLANE_VERSION
 
 rm -f $PROJECT_NAME-$VERSION.zip
 zip -rq $PROJECT_NAME-$VERSION.zip $PROJECT_NAME -x ".DS_Store" -x "__MACOSX"
+
+if [ "$EXTRA_FILES" = "y" ]; then
+    for platform in $PLATFORMS; do
+        if [ -d "extra_${platform}" ]; then
+            echo "The '${platform}_x64' folder contains additional files required by the $PROJECT_NAME plugin for $XPLANE_VERSION.\nUnzip and merge these files with the plugin folder in your X-Plane installation directory, usually located at 'Resources/plugins/$PROJECT_NAME/${platform}_x64'." > extra_${platform}/README.txt
+            rm -f $XPLANE_VERSION-$platform-additional-files.zip
+            zip -rq $XPLANE_VERSION-$platform-additional-files.zip extra_${platform} -x ".DS_Store" -x "__MACOSX"
+        fi
+    done
+fi
+
 mv $PROJECT_NAME dist
 cd ..
 
