@@ -21,7 +21,9 @@ SET(XPLANE_INCLUDES_PATH "${CMAKE_CURRENT_SOURCE_DIR}/SDK_${SDK_VERSION}/CHeader
 IF(APPLE)
     FIND_PACKAGE(CURL REQUIRED)
     SET(CURL_LIBRARY CURL::libcurl)
-    FIND_LIBRARY(CEF_LIBRARY "Chromium Embedded Framework" PATHS "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DIRECTORY_PREFIX}/cef")
+    IF (NOT APPLE OR SDK_VERSION GREATER 400) # Don't include CEF for X-Plane 11 on macOS - cefclient Helper.app handles this.
+        FIND_LIBRARY(CEF_LIBRARY "Chromium Embedded Framework" PATHS "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DIRECTORY_PREFIX}/cef")
+    ENDIF()
     SET(CEF_WRAPPER "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DIRECTORY_PREFIX}/cef/libcef_dll_wrapper.a")
     FIND_LIBRARY(COCOA_LIBRARY Cocoa)
     FIND_LIBRARY(OPENGL_LIBRARY OpenGL)
@@ -171,6 +173,7 @@ FUNCTION(add_xplane_plugin library_name library_version src_dir)
     TARGET_INCLUDE_DIRECTORIES("${PROJECT_NAME}" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DIRECTORY_PREFIX}/cef")
     HEADER_DIRECTORIES(header_dir_list ${src_dir})
     TARGET_INCLUDE_DIRECTORIES(${library_name} PRIVATE ${header_dir_list})
+        
 ENDFUNCTION(add_xplane_plugin)
 
 IF(NOT DEFINED SDK_VERSION)

@@ -452,11 +452,15 @@ bool Browser::createBrowser() {
     }
     
 #if APL
-    CefScopedLibraryLoader library_loader;
-    if (!library_loader.LoadInMain()) {
-        debug("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
-        return false;
-    }
+    #if XPLM410
+        CefScopedLibraryLoader library_loader;
+        if (!library_loader.LoadInMain()) {
+            debug("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
+            return false;
+        }
+    #else
+        cef_load_library((Path::getInstance()->pluginDirectory + "/mac_x64/Chromium Embedded Framework.framework/Chromium Embedded Framework").c_str());
+    #endif
 #endif
     
     std::string cachePath = Path::getInstance()->pluginDirectory + "/cache";
@@ -549,9 +553,11 @@ bool Browser::createBrowser() {
     CefString(&settings.locales_dir_path) = Path::getInstance()->pluginDirectory + "/win_x64/res/locales";
     CefString(&settings.browser_subprocess_path) = Path::getInstance()->pluginDirectory + "/win_x64/avitab_cef_helper.exe";
 #elif APL
+    settings.no_sandbox = true;
     CefMainArgs main_args;
-//    CefString(&settings.resources_dir_path) = Path::getInstance()->pluginDirectory + "/win_x64/res";
-//    CefString(&settings.locales_dir_path) = Path::getInstance()->pluginDirectory + "/win_x64/res/locales";
+    CefString(&settings.locales_dir_path) = Path::getInstance()->pluginDirectory + "/mac_x64/Chromium Embedded Framework.framework/Resources";
+    CefString(&settings.resources_dir_path) = Path::getInstance()->pluginDirectory + "/mac_x64/Chromium Embedded Framework.framework/Resources";
+    CefString(&settings.main_bundle_path) = Path::getInstance()->pluginDirectory + "/mac_x64/cefclient Helper.app";
     CefString(&settings.framework_dir_path) = Path::getInstance()->pluginDirectory + "/mac_x64/Chromium Embedded Framework.framework";
     CefString(&settings.browser_subprocess_path) = Path::getInstance()->pluginDirectory + "/mac_x64/cefclient Helper.app/Contents/MacOS/cefclient Helper";
 #elif LIN
@@ -576,6 +582,7 @@ bool Browser::createBrowser() {
 #endif
     //window_info.shared_texture_enabled
     window_info.windowless_rendering_enabled = true;
+    
     bool browserCreated = CefBrowserHost::CreateBrowser(window_info, handler, currentUrl, browser_settings, nullptr, request_context);
     if (!browserCreated) {
         AppState::getInstance()->showNotification(new Notification("Error creating browser", "An error occured while starting the browser.\nPlease verify if there are any updates for the " FRIENDLY_NAME " plugin and try again."));
