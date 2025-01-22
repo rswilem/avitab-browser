@@ -152,6 +152,11 @@ void AppState::checkLatestVersion() {
 
     try {
         std::string tag = nlohmann::json::parse(response)[0]["tag_name"];
+        if (tag.starts_with("v")) {
+            tag = tag.substr(1);
+        }
+        
+        remoteVersion = tag;
         std::string cleanedRemote = std::regex_replace(tag, std::regex("[^0-9]"), "");
         std::string cleanedLocal = std::regex_replace(VERSION, std::regex("[^0-9]"), "");
         int remoteVersionNumber = std::stoi(cleanedRemote);
