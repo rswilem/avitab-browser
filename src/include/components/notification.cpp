@@ -44,8 +44,11 @@ Notification::Notification(std::string aTitle, std::string body) {
         std::vector<char> buffer((std::istreambuf_iterator<char>(file)),
                                   std::istreambuf_iterator<char>());
         file.close();
-        
-        XPLMPlayPCMOnBus(buffer.data(), (unsigned int)buffer.size(), FMOD_SOUND_FORMAT_PCM16, 22050, 1, 0, xplm_AudioInterior, nullptr, nullptr);
+
+        FMOD_CHANNEL *sound = XPLMPlayPCMOnBus(buffer.data(), (unsigned int)buffer.size(), FMOD_SOUND_FORMAT_PCM16, 22050, 1, 0, xplm_AudioInterior, nullptr, nullptr);
+        if (sound) {
+            XPLMSetAudioVolume(sound, 0.3f);
+        }
     }
 #endif
 }
