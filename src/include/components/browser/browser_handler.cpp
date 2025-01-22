@@ -353,7 +353,32 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
                     window.location.href = addressBar.value;
                 }
             });
-    
+
+            addressBar.addEventListener('blur', function(e) {
+                if (addressBar.value === '') {
+                    addressBar.value = window.location.href;
+                }
+            });
+
+            // Clear input button
+            const clearInputButton = document.createElement('button');
+            clearInputButton.innerHTML = '&#10005;';
+            clearInputButton.style.cursor = 'pointer';
+            clearInputButton.style.color = isDarkMode ? '#D2D2D2' : '#1A1A1A';
+            clearInputButton.style.backgroundColor = 'transparent';
+            clearInputButton.style.fontSize = '12px';
+            clearInputButton.style.width = '14px';
+            clearInputButton.style.height = '14px';
+            clearInputButton.style.outline = 'none';
+            clearInputButton.style.border = 'none';
+            clearInputButton.style.position = 'absolute';
+            clearInputButton.style.right = '32px';
+            clearInputButton.style.zIndex = '9';
+            clearInputButton.onclick = function() {
+                addressBar.value = '';
+                addressBar.focus();
+            };
+
             // Refresh button
             const refreshButton = document.createElement('button');
             refreshButton.style.background = `url(${refresh}) no-repeat center / contain`
@@ -370,6 +395,7 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             toolbar.appendChild(backBtn);
             toolbar.appendChild(fwdBtn);
             toolbar.appendChild(addressBar);
+            toolbar.appendChild(clearInputButton);
             toolbar.appendChild(refreshButton);
 
             // Insert toolbar at the very top of <body>
