@@ -19,7 +19,6 @@ Notification::Notification(std::string aTitle, std::string body) {
     opacity = 1.0f;
     
     title = aTitle;
-    shouldDelete = false;
     dismissButton = new Button(0.3f, 0.05f);
     dismissButton->setClickHandler([]() {
         AppState::getInstance()->showNotification(nullptr);
@@ -51,6 +50,12 @@ Notification::Notification(std::string aTitle, std::string body) {
         }
     }
 #endif
+}
+
+void Notification::destroy() {
+    if (dismissButton) {
+        dismissButton->destroy();
+    }
 }
 
 void Notification::update() {

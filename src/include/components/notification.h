@@ -24,8 +24,7 @@ private:
     
 public:
     Notification(std::string title, std::string body);
-    
-    bool shouldDelete;
+    void destroy();
     
     void update();
     void draw();

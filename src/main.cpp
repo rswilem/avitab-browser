@@ -314,11 +314,11 @@ int mouseCursor(XPLMWindowID inWindowID, int x, int y, void* inRefcon) {
     }
     
     CursorType wantedCursor = CursorDefault;
-    if (AppState::getInstance()->browserVisible && AppState::getInstance()->browser->cursor() != CursorDefault) {
-        wantedCursor = AppState::getInstance()->browser->cursor();
-    }
-    else if (AppState::getInstance()->updateButtons(mouseX, mouseY, kButtonHover)) {
+    if (AppState::getInstance()->updateButtons(mouseX, mouseY, kButtonHover)) {
         wantedCursor = CursorHand;
+    }
+    else if (AppState::getInstance()->browserVisible && AppState::getInstance()->browser->cursor() != CursorDefault) {
+        wantedCursor = AppState::getInstance()->browser->cursor();
     }
     
     if (wantedCursor == CursorDefault) {

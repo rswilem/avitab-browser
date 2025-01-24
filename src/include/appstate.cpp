@@ -308,6 +308,10 @@ void AppState::showBrowser(std::string url) {
 }
 
 void AppState::showNotification(Notification *aNotification) {
+    if (notification && !aNotification) {
+        notification->destroy();
+    }
+    
     notification = aNotification;
 }
 
@@ -398,12 +402,16 @@ url_5=
     config.user_agent = reader.Get("browser", "user_agent", "");
     config.hide_addressbar = reader.GetBoolean("browser", "hide_addressbar", false);
     config.framerate = reader.GetInteger("browser", "framerate", 25);
+    
+    config.statusbarIcons.clear();
+    
 #if DEBUG
     config.debug_value_1 = reader.GetReal("debug", "debug_value_1", 0.0f);
     config.debug_value_2 = reader.GetReal("debug", "debug_value_2", 0.0f);
     config.debug_value_3 = reader.GetReal("debug", "debug_value_3", 0.0f);
+    config.statusbarIcons.push_back({"terminal", "__DEBUG__"});
 #endif
-    config.statusbarIcons.clear();
+    
     for (int i = 1; i <= 5; ++i) {
         std::string icon = reader.Get("statusbar", "icon_" + std::to_string(i), "globe");
         std::string url = reader.Get("statusbar", "url_" + std::to_string(i), "");
@@ -455,10 +463,35 @@ bool AppState::loadAvitabConfig() {
         }
     }
     
-    nlohmann::json data = nlohmann::json::parse(fileHandle);
+    nlohmann::json data = nullptr;
+    try {
+        data = nlohmann::json::parse(fileHandle);
+    } catch (const nlohmann::json::parse_error& e) {
+        debug("There was an error parsing the AviTab.json file:\n%s\n", e.what());
+        
+        // Be graceful and try to find the first '{' and last '}', then parse again.
+        std::stringstream buffer;
+        fileHandle.clear();
+        fileHandle.seekg(0);
+        buffer << fileHandle.rdbuf();
+
+        std::string content = buffer.str();
+        auto start = content.find('{');
+        auto end = content.rfind('}');
+        if (start != std::string::npos && end != std::string::npos && end > start) {
+            debug("Retry parsing the AviTab.json file...\n");
+            try {
+                data = nlohmann::json::parse(content.substr(start, end - start + 1));
+                debug("Parsed AviTab.json gracefully and succeeded.\n");
+            } catch (const nlohmann::json::parse_error& nested_e) {
+                debug("Retried parsing and failed again:\n%s\n", e.what());
+            }
+        }
+    }
+    
     fileHandle.close();
     
-    if (!data.contains("panel")) {
+    if (data == nullptr || !data.contains("panel")) {
         return false;
     }
     
