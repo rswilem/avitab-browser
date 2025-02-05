@@ -13,7 +13,7 @@ Image::Image(std::string filename) {
     x = 0;
     y = 0;
     rotationDegrees = 0;
-    opacity = 1;
+    visible = true;
     textureId = 0;
     
     if (filename.empty()) {
@@ -85,7 +85,7 @@ void Image::draw(unsigned short aRotationDegrees) {
 }
 
 void Image::draw() {
-    if (!textureId || opacity < __FLT_EPSILON__) {
+    if (!textureId || !visible) {
         return;
     }
     
@@ -116,7 +116,7 @@ void Image::draw() {
     y1 -= pixelsHeight / 2.0f;
     
     glBegin(GL_QUADS);
-    glColor4f(1, 1, 1, opacity);
+    set_brightness(AppState::getInstance()->brightness);
     
     glTexCoord2f(0, 1);
     glVertex2f(x1, y1);

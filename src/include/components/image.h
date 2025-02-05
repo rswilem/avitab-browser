@@ -13,7 +13,7 @@ protected:
     unsigned short rotationDegrees;
     
 public:
-    float opacity;
+    bool visible;
     float relativeWidth;
     float relativeHeight;
     unsigned int pixelsWidth;

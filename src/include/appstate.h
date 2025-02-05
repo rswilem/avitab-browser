@@ -71,6 +71,7 @@ private:
     void determineAircraftVariant();
 
 public:
+    float brightness;
     AvitabDimensions tabletDimensions;
     AppConfiguration config;
     AircraftVariant aircraftVariant = VariantUnknown;

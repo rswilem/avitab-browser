@@ -24,7 +24,7 @@ void Button::destroy() {
 }
 
 bool Button::handleState(float normalizedX, float normalizedY, ButtonState state) {
-    if (opacity < __FLT_EPSILON__) {
+    if (!visible) {
         return false;
     }
     

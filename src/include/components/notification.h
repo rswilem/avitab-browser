@@ -14,7 +14,7 @@ private:
     float y;
     float width;
     float height;
-    float opacity;
+    float animateIn;
     
     static constexpr float horizontalTextPadding = 24.0f;
     static constexpr float topPadding = 32.0f;

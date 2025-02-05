@@ -28,6 +28,7 @@ AppState::AppState() {
     statusbar = nullptr;
     browser = nullptr;
     activeCursor = CursorDefault;
+    brightness = 1.0f;
 }
 
 AppState::~AppState() {
@@ -92,7 +93,7 @@ bool AppState::initialize() {
         mainMenuButton->setPosition(0.2f, 0.568f);
     }
     
-    mainMenuButton->opacity = 0;
+    mainMenuButton->visible = false;
     mainMenuButton->setClickHandler([](){
         AppState::getInstance()->showBrowser();
         return true;
@@ -192,38 +193,22 @@ void AppState::update() {
         hasPower = Dataref::getInstance()->getCached<int>("laminar/B738/tab/power") == 1 && Dataref::getInstance()->getCached<int>("laminar/B738/tab/boot_active") == 0;
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("laminar/B738/tab/menu_page") == 8;
 
-        if (Dataref::getInstance()->getCached<int>("laminar/B738/tab/menu_page") == 11 && !Dataref::getInstance()->getCached<int>("avitab/panel_enabled")) {
-            if (aircraftVariant == VariantLevelUp737) {
-                mainMenuButton->opacity = 1.0f;
-            }
-            else {
-                mainMenuButton->opacity = Dataref::getInstance()->getCached<int>("laminar/B738/tab/efb_night_mode") ? 0.4 : 0.9;
-            }
-        }
-        else {
-            mainMenuButton->opacity = 0;
-        }
-        
+        brightness = aircraftVariant == VariantZibo738 && Dataref::getInstance()->getCached<int>("laminar/B738/tab/efb_night_mode") ? 0.5f : 1.0f;
+        mainMenuButton->visible = (Dataref::getInstance()->getCached<int>("laminar/B738/tab/menu_page") == 11 && !Dataref::getInstance()->getCached<int>("avitab/panel_enabled"));
     }
     else if (aircraftVariant == VariantFelis742) {
         hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
         
-        float brightness = 0.0f;
-        if (AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/panel_enabled") && Dataref::getInstance()->getCached<int>("avitab/is_in_menu")) {
-            brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
-        }
-        mainMenuButton->opacity = brightness;
+        brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
+        mainMenuButton->visible = hasPower && Dataref::getInstance()->getCached<int>("avitab/panel_enabled") && Dataref::getInstance()->getCached<int>("avitab/is_in_menu");
     }
     else {
         hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
         
-        float brightness = 0.0f;
-        if (AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu")) {
-            brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
-        }
-        mainMenuButton->opacity = brightness;
+        brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
+        mainMenuButton->visible = AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu");
     }
     
     if (browserVisible && !canBrowserVisible) {
@@ -263,6 +248,7 @@ void AppState::draw() {
         return;
     }
     
+    set_brightness(brightness);
     mainMenuButton->draw();
     statusbar->draw();
     

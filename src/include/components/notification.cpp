@@ -5,6 +5,7 @@
 #ifdef XPLM410
 #include <XPLMSound.h>
 #endif
+#include "dataref.h"
 #include <fstream>
 #include "config.h"
 #include "path.h"
@@ -16,7 +17,7 @@ Notification::Notification(std::string aTitle, std::string body) {
     y = 0.0f;
     width = 0.0f;
     height = 0.0f;
-    opacity = 1.0f;
+    animateIn = 0.0f;
     
     title = aTitle;
     dismissButton = new Button(0.3f, 0.05f);
@@ -28,13 +29,10 @@ Notification::Notification(std::string aTitle, std::string body) {
     x = 0.5f;
     y = 0.55f;
     
-    glColor3f(1.0f, 1.0f, 1.0f);
-    
     width = 0.3f;
     x -= width / 2.0f;
     bodyLines = Drawing::WrapWordsToLines(xplmFont_Proportional, body, width - ((horizontalTextPadding * 2.0f) / AppState::getInstance()->tabletDimensions.height));
     height = (topPadding + titleBodyPadding + (bodyLines.size() * bodyLineHeight) + buttonPadding + dismissButton->pixelsHeight + buttonPadding) / AppState::getInstance()->tabletDimensions.height;
-    opacity = 0.4f;
     
 #ifdef XPLM410
     std::ifstream file(Path::getInstance()->pluginDirectory + "/assets/notify.pcm", std::ios::binary | std::ios::ate);
@@ -59,12 +57,14 @@ void Notification::destroy() {
 }
 
 void Notification::update() {
-    if (opacity < 1.0f) {
-        opacity += 0.2f;
-    }
+    
 }
 
 void Notification::draw() {
+    if (animateIn < 1.0f) {
+        animateIn = fmin(animateIn + 0.1f, 1.0f);
+    }
+    
     XPLMSetGraphicsState(
                          0, // No fog, equivalent to glDisable(GL_FOG);
                          0, // One texture, equivalent to glEnable(GL_TEXTURE_2D);
@@ -75,10 +75,10 @@ void Notification::draw() {
                          0 // No depth write, e.g. glDepthMask(GL_FALSE);
     );
     
-    glColor4f(0, 0, 0, opacity * 0.6f);
+    glColor4f(0.0f, 0.0f, 0.0f, animateIn * 0.6f);
     Drawing::DrawRect(0.0f, 0.0f, 1.0f, 1.0f);
     
-    glColor4f(1.0f, 1.0f, 1.0f, opacity);
+    set_brightness(AppState::getInstance()->brightness);
     Drawing::DrawRoundedRect(x, y - (height / 2.0f), x + width, y + (height / 2.0f), 16.0f);
     
     float yOffset = y + (height / 2.0f) - (topPadding  / AppState::getInstance()->tabletDimensions.height);
@@ -90,10 +90,10 @@ void Notification::draw() {
         yOffset -= bodyLineHeight / AppState::getInstance()->tabletDimensions.height;
     }
     
-    glColor4f(0.2f, 0.2f, 0.2f, opacity);
+    set_brightness(AppState::getInstance()->brightness * 0.2f);
     Drawing::DrawLine(x, yOffset, x + width, yOffset, 1.0f);
     yOffset -= (buttonPadding / AppState::getInstance()->tabletDimensions.height) * 3.0f;
     
     dismissButton->setPosition(0.5f, yOffset);
-    Drawing::DrawText("OK", x + (width / 2.0f), yOffset, 1.4f, { 0.4f, 0.4f, 1.0f });
+    Drawing::DrawText("OK", x + (width / 2.0f), yOffset, 1.4f, { AppState::getInstance()->brightness * 0.4f, AppState::getInstance()->brightness * 0.4f, AppState::getInstance()->brightness * 1.0f });
 }

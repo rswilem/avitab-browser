@@ -10,6 +10,7 @@
     #include <OpenGL/gl.h>
 #endif
 
+#define set_brightness(value) glColor4f(value, value, value, 1.0f)
 #define debug(format, ...) { char buffer[1024]; snprintf(buffer, sizeof(buffer), "[avitab-browser] " format, ##__VA_ARGS__); XPLMDebugString(buffer); }
 
 #define PRODUCT_NAME "avitab-browser"

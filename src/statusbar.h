@@ -9,7 +9,6 @@
 class Statusbar {
 private:
     float x;
-    std::string noticeText;
     std::string activeTabTitle;
     Button *activeTabButton;
     Image *spinnerImage;
@@ -22,7 +21,6 @@ public:
     void destroy();
     void update();
     void draw();
-    void setNotice(std::string text);
     void setActiveTab(std::string title);
 };
 

@@ -344,12 +344,7 @@ void BrowserHandler::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<C
 
 void BrowserHandler::OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, CefRefPtr<CefDownloadItemCallback> callback) {
     if (download_item->IsComplete()) {
-        AppState::getInstance()->statusbar->setNotice("");
         AppState::getInstance()->showNotification(new Notification("Download finished", "The download has been completed."));
-    }
-    else {
-        int percentComplete = fmax(0, static_cast<int>(download_item->GetPercentComplete()));
-        AppState::getInstance()->statusbar->setNotice("Downloading... " + std::to_string(percentComplete) + "%");
     }
 }
 

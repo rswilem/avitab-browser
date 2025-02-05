@@ -226,7 +226,7 @@ void Browser::update() {
     }
     
     if (backButton) {
-        backButton->opacity = AppState::getInstance()->browserVisible ? 1.0f : 0.0f;
+        backButton->visible = AppState::getInstance()->browserVisible;
     }
     
     if (lastGpsUpdateTime > __FLT_EPSILON__ && XPLMGetElapsedTime() > lastGpsUpdateTime + 1.0f) {
@@ -258,8 +258,7 @@ void Browser::draw() {
     int y2 = y1 + tabletDimensions.height * (offsetEnd - offsetStart);
     
     glBegin(GL_QUADS);
-    float brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
-    glColor4f(brightness, brightness, brightness, 1.0f);
+    set_brightness(AppState::getInstance()->brightness);
     
     float u = (float)tabletDimensions.browserWidth / tabletDimensions.textureWidth;
     float v = (float)tabletDimensions.browserHeight / tabletDimensions.textureHeight;

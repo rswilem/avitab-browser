@@ -11,7 +11,6 @@
 Statusbar::Statusbar() {
     x = 0.0f;
     loading = false;
-    noticeText = "";
     activeTabTitle = "";
     activeTabButton = nullptr;
     spinnerImage = nullptr;
@@ -82,6 +81,7 @@ void Statusbar::draw() {
         return;
     }
     
+    set_brightness(AppState::getInstance()->brightness * 0.2f);
     if (loading && AppState::getInstance()->browserVisible) {
         spinnerImage->draw(fmod(XPLMGetElapsedTime() * 360, 360));
     }
@@ -100,14 +100,7 @@ void Statusbar::draw() {
                          0 // No depth write, e.g. glDepthMask(GL_FALSE);
     );
     
-    if (!noticeText.empty()) {
-        glColor4f(0.2f, 0.2f, 0.2f, 0.8f);
-        Drawing::DrawRoundedRect(0.25f, 0.85f, 0.75f, 0.95f, 16.0f);
-        Drawing::DrawText(noticeText, 0.5f, 0.9f, 1.0f, {1.0f, 1.0f, 1.0f});
-    }
-    
     if (!activeTabTitle.empty()) {
-        glColor4f(1.0f, 1.0f, 1.0f, 0.2f);
         float y = 0.967f;
         if (AppState::getInstance()->aircraftVariant == VariantZibo738) {
             y = 1.0f;
@@ -120,13 +113,10 @@ void Statusbar::draw() {
         }
         activeTabButton->setPosition(x - (activeTabButton->relativeWidth / 2.0f) - 0.005f, y);
         
+        set_brightness(AppState::getInstance()->brightness * 0.2f);
         Drawing::DrawRoundedRect(x - activeTabButton->relativeWidth - 0.005f, y - 0.015f, x - 0.005f, y + 0.015f, 4.0f);
-        Drawing::DrawText(activeTabTitle, x - 0.005f - activeTabButton->relativeWidth / 2.0f, y, 1.0f, {1.0f, 1.0f, 1.0f});
+        Drawing::DrawText(activeTabTitle, x - 0.005f - activeTabButton->relativeWidth / 2.0f, y, 1.0f, {AppState::getInstance()->brightness + 0.1f, AppState::getInstance()->brightness + 0.1f, AppState::getInstance()->brightness + 0.1f});
     }
-}
-
-void Statusbar::setNotice(std::string text) {
-    noticeText = text;
 }
 
 void Statusbar::setActiveTab(std::string title) {
