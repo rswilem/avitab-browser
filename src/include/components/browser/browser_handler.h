@@ -5,10 +5,17 @@
 #include <include/cef_version.h>
 #include "cursor.h"
 
+struct PopupRect {
+    int x, y, width, height;
+};
+
 class BrowserHandler : public CefClient, public CefPermissionHandler, public CefRenderHandler, public CefDisplayHandler, public CefLifeSpanHandler, public CefLoadHandler, public CefDialogHandler, public CefJSDialogHandler, public CefFocusHandler, public CefRequestHandler, public CefDownloadHandler, public CefResourceRequestHandler {
 private:
     IMPLEMENT_REFCOUNTING(BrowserHandler);
     int textureId;
+    PopupRect popupRect;
+    bool popupShown;
+    bool needsFullDraw;
     std::string *currentUrl;
     unsigned short windowWidth;
     unsigned short windowHeight;
@@ -39,6 +46,8 @@ public:
     bool DoClose(CefRefPtr<CefBrowser> browser) override;
     void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
     bool OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, const CefString &target_url, const CefString &target_frame_name, CefLifeSpanHandler::WindowOpenDisposition target_disposition, bool user_gesture, const CefPopupFeatures &popupFeatures, CefWindowInfo &windowInfo, CefRefPtr<CefClient> &client, CefBrowserSettings &settings, CefRefPtr<CefDictionaryValue> &extra_info, bool *no_javascript_access) override;
+    void OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) override;
+    void OnPopupSize(CefRefPtr<CefBrowser> browser, const CefRect &rect) override;
     void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect &rect) override;
     void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString &title) override;
     void OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList &dirtyRects, const void *buffer, int width, int height) override;

@@ -23,6 +23,8 @@
 
 BrowserHandler::BrowserHandler(int aTextureId, std::string* aCurrentUrl, unsigned short aWidth, unsigned short aHeight) {
     textureId = aTextureId;
+    popupRect = {0,0,0,0};
+    popupShown = false;
     currentUrl = aCurrentUrl;
     windowWidth = aWidth;
     windowHeight = aHeight;
@@ -76,6 +78,21 @@ bool BrowserHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefF
     return true;
 }
 
+void BrowserHandler::OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) {
+    popupShown = show;
+    
+    if (popupShown) {
+        browser->GetHost()->Invalidate(PET_POPUP);
+    }
+    else {
+        needsFullDraw = true;
+    }
+}
+
+void BrowserHandler::OnPopupSize(CefRefPtr<CefBrowser> browser, const CefRect &rect) {
+    popupRect = {rect.x, rect.y, rect.width, rect.height};
+}
+
 void BrowserHandler::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect &rect) {
     rect = CefRect(0, 0, windowWidth, windowHeight);
 }
@@ -96,15 +113,44 @@ void BrowserHandler::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType typ
         const uint8_t* rectBuffer = static_cast<const uint8_t*>(buffer) + rect.y * width * bytes_per_pixel + rect.x * bytes_per_pixel;
         
         glPixelStorei(GL_UNPACK_ROW_LENGTH, width);
-        glTexSubImage2D(
-            GL_TEXTURE_2D,
-            0,
-            rect.x, rect.y,
-            rect.width, rect.height,
-            GL_BGRA,
-            GL_UNSIGNED_BYTE,
-            rectBuffer
-        );
+        
+        if  (needsFullDraw) {
+            glTexSubImage2D(
+                            GL_TEXTURE_2D,
+                            0,
+                            0, 0,
+                            width, height,
+                            GL_BGRA,
+                            GL_UNSIGNED_BYTE,
+                            buffer
+                            );
+            needsFullDraw = false;
+        }
+        else if (popupShown) {
+            if (type == PET_POPUP) {
+                glTexSubImage2D(
+                    GL_TEXTURE_2D,
+                    0,
+                    popupRect.x + rect.x, popupRect.y + rect.y,
+                    rect.width, rect.height,
+                    GL_BGRA,
+                    GL_UNSIGNED_BYTE,
+                    rectBuffer
+                );
+            }
+        }
+        else {
+            glTexSubImage2D(
+                GL_TEXTURE_2D,
+                0,
+                rect.x, rect.y,
+                rect.width, rect.height,
+                GL_BGRA,
+                GL_UNSIGNED_BYTE,
+                rectBuffer
+            );
+        }
+        
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     }
 }
@@ -145,6 +191,76 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
     if (errorCode == ERR_ABORTED) {
         return;
     }
+    
+#if DEBUG
+    if (failedUrl.ToString() == "http://__debug__/") {
+        const std::string htmlString = R"(
+        <html>
+        <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+            <title>)" + std::string(FRIENDLY_NAME) + R"(</title>
+            <script>
+                window.onload = () => {
+                    document.getElementById('user-agent').textContent = navigator.userAgent;
+                
+                    navigator.geolocation.watchPosition(({coords}) => {
+                        document.getElementById('location').textContent = `${coords.latitude}, ${coords.longitude} at ${coords.altitude}m ${coords.speed}m/s`;
+                    });
+                };
+            </script>
+        </head>
+        <body class="flex flex-col items-center justify-start w-full">
+            <div class="flex flex-col items-center gap-4 max-w-3xl">
+                <h1 class="text-3xl font-bold underline">)" + std::string(FRIENDLY_NAME) + R"(</h1>
+                <div>
+                    <input id="alert-text" placeholder="Type here" />
+                    <button onclick="javascript:alert(document.getElementById('alert-text').value || 'Test');">Show alert</button>
+                </div>
+        
+                <div class="flex flex-col gap-2 text-xs">
+                    <span>User-Agent (JS)</span>
+                    <span id="user-agent" />
+                </div>
+        
+                <div class="flex flex-col gap-2 text-xs">
+                    <span>Location</span>
+                    <span id="location" />
+                </div>
+        
+                <div>
+                    <select class="w-48 p-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option>Option 1</option>
+                        <option>Option 2</option>
+                        <option>Option 3</option>
+                        <option>Option 4</option>
+                        <option>Option 5</option>
+                        <option>Option 6</option>
+                        <option>Option 7</option>
+                        <option>Option 8</option>
+                        <option>Option 9</option>
+                        <option>Option 10</option>
+                        <option>Option 11</option>
+                        <option>Option 12</option>
+                        <option>Option 13</option>
+                        <option>Option 14</option>
+                        <option>Option 15</option>
+                        <option>Option 16</option>
+                        <option>Option 17</option>
+                        <option>Option 18</option>
+                        <option>Option 19</option>
+                        <option>Option 20</option>
+                    </select>
+                </div>
+            </div>
+        </body>
+        </html>
+        )";
+        browser->GetMainFrame()->LoadURL("data:text/html;charset=utf-8," + htmlString);
+        return;
+    }
+#endif
 
     debug("Error loading %s: %s\n", failedUrl.ToString().c_str(), errorText.ToString().c_str());
 }

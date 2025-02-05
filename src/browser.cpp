@@ -342,50 +342,6 @@ void Browser::loadUrl(std::string url) {
     
     currentUrl = url;
     if (handler->browserInstance) {
-#if DEBUG
-        if (url == "__DEBUG__") {
-            const std::string htmlString = R"(
-            <html>
-            <head>
-                <meta charset="UTF-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-                <title>)" + std::string(FRIENDLY_NAME) + R"(</title>
-                <script>
-                    window.onload = () => {
-                        document.getElementById('user-agent').textContent = navigator.userAgent;
-                    
-                        navigator.geolocation.watchPosition(({coords}) => {
-                            document.getElementById('location').textContent = `${coords.latitude}, ${coords.longitude} at ${coords.altitude}m ${coords.speed}m/s`;
-                        });
-                    };
-                </script>
-            </head>
-            <body class="flex flex-col items-center justify-start w-full">
-                <div class="flex flex-col items-center gap-4 max-w-3xl">
-                    <h1 class="text-3xl font-bold underline">)" + std::string(FRIENDLY_NAME) + R"(</h1>
-                    <div>
-                        <input id="alert-text" placeholder="Type here" />
-                        <button onclick="javascript:alert(document.getElementById('alert-text').value || 'Test');">Show alert</button>
-                    </div>
-            
-                    <div class="flex flex-col gap-2 text-xs">
-                        <span>User-Agent (JS)</span>
-                        <span id="user-agent" />
-                    </div>
-            
-                    <div class="flex flex-col gap-2 text-xs">
-                        <span>Location</span>
-                        <span id="location" />
-                    </div>
-                </div>
-            </body>
-            </html>
-            )";
-            handler->browserInstance->GetMainFrame()->LoadURL("data:text/html;charset=utf-8," + htmlString);
-            return;
-        }
-#endif
         handler->browserInstance->GetMainFrame()->LoadURL(url);
     }
 }
