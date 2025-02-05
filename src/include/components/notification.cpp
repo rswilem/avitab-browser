@@ -7,6 +7,7 @@
 #endif
 #include "dataref.h"
 #include <fstream>
+#include <cmath>
 #include "config.h"
 #include "path.h"
 #include "appstate.h"

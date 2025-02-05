@@ -128,7 +128,7 @@ fi
 VERSION=$VERSION-$XPLANE_VERSION
 
 rm -f $PROJECT_NAME-$VERSION.zip
-zip -rq $PROJECT_NAME-$VERSION.zip $PROJECT_NAME -x ".DS_Store" -x "__MACOSX"
+zip -rq $PROJECT_NAME-$VERSION.zip $PROJECT_NAME -x "*/.DS_Store" -x "*/__MACOSX/*"
 
 if [ "$EXTRA_FILES" = "y" ]; then
     for platform in $PLATFORMS; do
