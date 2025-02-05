@@ -100,7 +100,16 @@ bool AppState::initialize() {
     
     Dataref::getInstance()->bind<bool>("avitab_browser/visible", &browserVisible);
     Dataref::getInstance()->createCommand("avitab_browser/toggle", "Show or hide the AviTab Browser in the 3D cockpit", [this](XPLMCommandPhase inPhase) {
-        AppState::getInstance()->showBrowser();
+        if (inPhase != xplm_CommandBegin) {
+            return;
+        }
+        
+        if (!browserVisible) {
+            showBrowser();
+        }
+        else {
+            hideBrowser();
+        }
     });
     
     pluginInitialized = true;
@@ -304,6 +313,19 @@ void AppState::showBrowser(std::string url) {
     
     if (!url.empty()) {
         browser->loadUrl(url);
+    }
+}
+
+void AppState::hideBrowser() {
+    if (!hasPower || !browserVisible) {
+        return;
+    }
+    
+    if (aircraftVariant == VariantZibo738 || aircraftVariant == VariantLevelUp737) {
+        Dataref::getInstance()->executeCommand("laminar/B738/tab/home");
+    }
+    else {
+        Dataref::getInstance()->executeCommand("AviTab/Home");
     }
 }
 
