@@ -48,10 +48,10 @@ enum AircraftVariant: unsigned char {
     VariantLevelUp737
 };
 
-typedef std::function<void()> DelayedTaskFunc;
+typedef std::function<void()> CallbackFunc;
 
 struct DelayedTask {
-    DelayedTaskFunc func;
+    CallbackFunc func;
     float executeAfterElapsedSeconds;
 };
 
@@ -69,6 +69,8 @@ private:
     bool loadAvitabConfig();
     bool fileExists(std::string filename);
     void determineAircraftVariant();
+    void vrStatusChanged();
+    std::vector<CallbackFunc> vrStatusChangedCallbacks;
 
 public:
     float brightness;
@@ -79,6 +81,7 @@ public:
     bool shouldCaptureClickEvents = false;
     bool hasPower = false;
     bool browserVisible = false;
+    bool isVrEnabled = false;
     Statusbar *statusbar;
     Browser *browser;
     CursorType activeCursor;
@@ -98,7 +101,8 @@ public:
     void showBrowser(std::string url = "");
     void hideBrowser();
     void showNotification(Notification *notification);
-    void executeDelayed(DelayedTaskFunc func, float delay);
+    void executeDelayed(CallbackFunc func, float delay);
+    void executeOnVRStatusChanged(CallbackFunc func);
     bool loadConfig(bool isReloading = true);
 };
 

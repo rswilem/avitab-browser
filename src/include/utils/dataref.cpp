@@ -199,6 +199,7 @@ bool Dataref::exists(const char* ref) {
 }
 
 template int Dataref::getCached<int>(const char* ref);
+template std::vector<int> Dataref::getCached<std::vector<int>>(const char* ref);
 template float Dataref::getCached<float>(const char* ref);
 template std::string Dataref::getCached<std::string>(const char* ref);
 template <typename T>
@@ -214,6 +215,9 @@ T Dataref::getCached(const char *ref) {
         if constexpr (std::is_same<T, std::string>::value) {
             return "";
         }
+        else if constexpr (std::is_same<T, std::vector<int>>::value) {
+            return {};
+        }
         else {
             return 0;
         }
@@ -224,6 +228,7 @@ T Dataref::getCached(const char *ref) {
 
 template float Dataref::get<float>(const char* ref);
 template int Dataref::get<int>(const char* ref);
+template std::vector<int> Dataref::get<std::vector<int>>(const char* ref);
 template std::string Dataref::get<std::string>(const char* ref);
 template <typename T>
 T Dataref::get(const char *ref) {
@@ -231,6 +236,9 @@ T Dataref::get(const char *ref) {
     if (!handle) {
         if constexpr (std::is_same<T, std::string>::value) {
             return "";
+        }
+        else if constexpr (std::is_same<T, std::vector<int>>::value) {
+            return {};
         }
         else {
             return 0;
@@ -243,6 +251,12 @@ T Dataref::get(const char *ref) {
     else if constexpr (std::is_same<T, float>::value) {
         return XPLMGetDataf(handle);
     }
+    else if constexpr (std::is_same<T, std::vector<int>>::value) {
+        int size = XPLMGetDatavi(handle, nullptr, 0, 0);
+        std::vector<int> outValues(size);
+        XPLMGetDatavi(handle, outValues.data(), 0, size);
+        return outValues;
+    }
     /*else if constexpr (std::is_same<T, std::string>::value) {
         int size = XPLMGetDatab(handle, nullptr, 0, 0);
         char str[size];
@@ -252,6 +266,9 @@ T Dataref::get(const char *ref) {
     
     if constexpr (std::is_same<T, std::string>::value) {
         return "";
+    }
+    else if constexpr (std::is_same<T, std::vector<int>>::value) {
+        return {};
     }
     else {
         return 0;
@@ -297,7 +314,7 @@ void Dataref::executeCommand(const char *command) {
     XPLMCommandOnce(ref);
 }
 
-void Dataref::bindCommand(const char *command, CommandExecutedCallback callback) {
+void Dataref::bindExistingCommand(const char *command, CommandExecutedCallback callback) {
     XPLMCommandRef handle = XPLMFindCommand(command);
     if (!handle) {
         return;
@@ -307,6 +324,8 @@ void Dataref::bindCommand(const char *command, CommandExecutedCallback callback)
         handle,
         callback
     };
+    
+    XPLMRegisterCommandHandler(handle, handleCommandCallback, 1, nullptr);
 }
 
 void Dataref::createCommand(const char *command, const char *description, CommandExecutedCallback callback) {
@@ -320,12 +339,7 @@ void Dataref::createCommand(const char *command, const char *description, Comman
         XPLMUnregisterCommandHandler(handle, handleCommandCallback, 1, nullptr);
     }
     
-    boundCommands[command] = {
-        handle,
-        callback
-    };
-    
-    XPLMRegisterCommandHandler(handle, handleCommandCallback, 1, nullptr);
+    bindExistingCommand(command, callback);
 }
 
 int Dataref::commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon) {

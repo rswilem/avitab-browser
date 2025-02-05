@@ -29,7 +29,7 @@ private:
     std::unordered_map<std::string, BoundRef> boundRefs;
     std::unordered_map<std::string, BoundCommand> boundCommands;
     std::unordered_map<std::string, XPLMDataRef> refs;
-    std::unordered_map<std::string, std::variant<int, float, std::string>> cachedValues;
+    std::unordered_map<std::string, std::variant<int, float, std::string, std::vector<int>>> cachedValues;
     XPLMDataRef findRef(const char* ref);
     float lastMouseX;
     float lastMouseY;
@@ -41,7 +41,7 @@ public:
     static Dataref* getInstance();
     
     template <typename T> void bind(const char* ref, T* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
-    void bindCommand(const char *command, CommandExecutedCallback callback);
+    void bindExistingCommand(const char *command, CommandExecutedCallback callback);
     void createCommand(const char *command, const char *description, CommandExecutedCallback callback);
     int commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon);
     void unbind(const char *ref);

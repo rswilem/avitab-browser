@@ -124,6 +124,8 @@ void AppState::deinitialize() {
     
     Dataref::getInstance()->destroyAllBindings();
     
+    vrStatusChangedCallbacks.clear();
+    tasks.clear();
     buttons.clear();
     notification = nullptr;
     browser->visibilityWillChange(false);
@@ -241,6 +243,12 @@ void AppState::update() {
         }),
         tasks.end()
     );
+    
+    bool datarefVrEnabled = Dataref::getInstance()->getCached<int>("sim/graphics/VR/enabled");
+    if (isVrEnabled != datarefVrEnabled) {
+        isVrEnabled = datarefVrEnabled;
+        vrStatusChanged();
+    }
 }
 
 void AppState::draw() {
@@ -323,11 +331,15 @@ void AppState::showNotification(Notification *aNotification) {
     notification = aNotification;
 }
 
-void AppState::executeDelayed(DelayedTaskFunc func, float delay) {
+void AppState::executeDelayed(CallbackFunc func, float delay) {
     tasks.push_back({
         func,
         XPLMGetElapsedTime() + delay
     });
+}
+
+void AppState::executeOnVRStatusChanged(CallbackFunc func) {
+    vrStatusChangedCallbacks.push_back(func);
 }
 
 bool AppState::loadConfig(bool isReloading) {
@@ -570,4 +582,10 @@ void AppState::determineAircraftVariant() {
     }
     
     aircraftVariant = VariantUnknown;
+}
+
+void AppState::vrStatusChanged() {
+    for (auto& callback : vrStatusChangedCallbacks) {
+        callback();
+    }
 }
