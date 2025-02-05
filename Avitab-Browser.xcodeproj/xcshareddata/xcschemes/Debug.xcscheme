@@ -58,6 +58,12 @@
          BundleIdentifier = "com.laminar-research.X-Plane"
          FilePath = "/Users/ramon/X-Plane 12/X-Plane.app">
       </PathRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "--fake_vr"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
