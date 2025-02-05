@@ -111,8 +111,10 @@ cp -r assets build/dist
 # default_ini=$(sed -n '/const char \*defaultConfig = R"(/,/^)";/p' "./src/include/appstate.cpp" | sed '$d' | sed '1s/const char \*defaultConfig = R"(//' | sed 's/^[ \t]*//')
 # echo "$default_ini" > build/dist/config.ini
 
-# TODO: Must exist on server: skunkcrafts_updater_whitelist.txt with e.g. avitab-browser.xpl|crc32
-# echo "zone|custom\nmodule|https://yourserver.com/addon_path\nname|AviTab Browser\nversion|$VERSION\n" > build/dist/skunkcrafts_updater.cfg
+# Only add Skunkcrafts for XP12
+if [ $SDK_VERSION -ge 400 ]; then
+    echo "module|https://ramonster.nl/avitab-browser\nname|AviTab Browser\nversion|$VERSION\nlocked|false\ndisabled|false\nzone|custom" > build/dist/skunkcrafts_updater.cfg
+fi
 
 cd build
 mv dist $PROJECT_NAME
