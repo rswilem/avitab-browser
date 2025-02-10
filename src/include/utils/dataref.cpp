@@ -32,12 +32,12 @@ Dataref* Dataref::getInstance() {
     return instance;
 }
 
-template void Dataref::bind<int>(const char* ref, int* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
-template void Dataref::bind<bool>(const char* ref, bool* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
-template void Dataref::bind<float>(const char* ref, float* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
-template void Dataref::bind<std::string>(const char* ref, std::string* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::createDataref<int>(const char* ref, int* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::createDataref<bool>(const char* ref, bool* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::createDataref<float>(const char* ref, float* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::createDataref<std::string>(const char* ref, std::string* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
 template <typename T>
-void Dataref::bind(const char* ref, T *value, bool writable, BoundRefChangeCallback changeCallback) {
+void Dataref::createDataref(const char* ref, T *value, bool writable, BoundRefChangeCallback changeCallback) {
     unbind(ref);
     
     XPLMDataRef handle = nullptr;

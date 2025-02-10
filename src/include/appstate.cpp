@@ -29,6 +29,8 @@ AppState::AppState() {
     browser = nullptr;
     activeCursor = CursorDefault;
     brightness = 1.0f;
+    isVrEnabled = false;
+    isVrUsingMouse = false;
 }
 
 AppState::~AppState() {
@@ -99,7 +101,7 @@ bool AppState::initialize() {
         return true;
     });
     
-    Dataref::getInstance()->bind<bool>("avitab_browser/visible", &browserVisible);
+    Dataref::getInstance()->createDataref<bool>("avitab_browser/visible", &browserVisible);
     Dataref::getInstance()->createCommand("avitab_browser/toggle", "Show or hide the AviTab Browser in the 3D cockpit", [this](XPLMCommandPhase inPhase) {
         if (inPhase != xplm_CommandBegin) {
             return;
@@ -124,6 +126,7 @@ void AppState::deinitialize() {
     
     Dataref::getInstance()->destroyAllBindings();
     
+    vrMouseChangedCallbacks.clear();
     vrStatusChangedCallbacks.clear();
     tasks.clear();
     buttons.clear();
@@ -205,6 +208,19 @@ void AppState::update() {
         brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
         mainMenuButton->visible = hasPower && Dataref::getInstance()->getCached<int>("avitab/panel_enabled") && Dataref::getInstance()->getCached<int>("avitab/is_in_menu");
     }
+    else if (aircraftVariant == VariantJustFlight) {
+        bool hadPower = hasPower;
+        hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled") && Dataref::getInstance()->getCached<int>("thranda/avitab/aviTabSwap");
+        canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
+        
+        if (!hadPower && hasPower) {
+            // The Duchess creates a window to capture clicks whenever AviTab is opened. We want to be on top of that window.
+            XPLMBringWindowToFront(mainWindow);
+        }
+        
+        brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
+        mainMenuButton->visible = AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu");
+    }
     else {
         hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
@@ -247,7 +263,15 @@ void AppState::update() {
     bool datarefVrEnabled = Dataref::getInstance()->getCached<int>("sim/graphics/VR/enabled");
     if (isVrEnabled != datarefVrEnabled) {
         isVrEnabled = datarefVrEnabled;
-        vrStatusChanged();
+        vrStatusChanged(false);
+    }
+    
+    if (isVrEnabled) {
+        bool datarefVrUsingMouse = Dataref::getInstance()->getCached<int>("sim/graphics/VR/using_3d_mouse");
+        if (isVrUsingMouse != datarefVrUsingMouse) {
+            isVrUsingMouse = datarefVrUsingMouse;
+            vrStatusChanged(true);
+        }
     }
 }
 
@@ -331,15 +355,19 @@ void AppState::showNotification(Notification *aNotification) {
     notification = aNotification;
 }
 
-void AppState::executeDelayed(CallbackFunc func, float delay) {
+void AppState::executeDelayed(CallbackFunc func, float delaySeconds) {
     tasks.push_back({
         func,
-        XPLMGetElapsedTime() + delay
+        XPLMGetElapsedTime() + delaySeconds
     });
 }
 
 void AppState::executeOnVRStatusChanged(CallbackFunc func) {
     vrStatusChangedCallbacks.push_back(func);
+}
+
+void AppState::executeOnVRMouseChanged(CallbackFunc func) {
+    vrMouseChangedCallbacks.push_back(func);
 }
 
 bool AppState::loadConfig(bool isReloading) {
@@ -581,11 +609,24 @@ void AppState::determineAircraftVariant() {
         return;
     }
     
+    std::string justFlightFolder = Path::getInstance()->aircraftDirectory + "/plugins/SASL3_Thranda12";
+    if (std::filesystem::exists(justFlightFolder) && std::filesystem::is_directory(justFlightFolder)) {
+        aircraftVariant = VariantJustFlight;
+        return;
+    }
+    
     aircraftVariant = VariantUnknown;
 }
 
-void AppState::vrStatusChanged() {
-    for (auto& callback : vrStatusChangedCallbacks) {
-        callback();
+void AppState::vrStatusChanged(bool mouseStatusChanged) {
+    if (mouseStatusChanged) {
+        for (auto& callback : vrMouseChangedCallbacks) {
+            callback();
+        }
+    }
+    else {
+        for (auto& callback : vrStatusChangedCallbacks) {
+            callback();
+        }
     }
 }

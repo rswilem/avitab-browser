@@ -155,7 +155,7 @@ void Browser::initialize() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     
     currentUrl = AppState::getInstance()->config.homepage;
-    Dataref::getInstance()->bind<std::string>("avitab_browser/url", &currentUrl, true, [this](void *valuePtr) {
+    Dataref::getInstance()->createDataref<std::string>("avitab_browser/url", &currentUrl, true, [this](void *valuePtr) {
         std::string newUrl = std::string(static_cast<const char *>(valuePtr));
         
         if (!newUrl.starts_with("http")) {

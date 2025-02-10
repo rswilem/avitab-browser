@@ -43,7 +43,6 @@ void captureClickEvents(bool enable);
 unsigned char pressedKeyCode = 0;
 unsigned char pressedVirtualKeyCode = 0;
 double pressedKeyTime = 0;
-XPLMWindowID window;
 
 PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
 {
@@ -65,10 +64,9 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     
     AppState::getInstance()->executeOnVRStatusChanged([]() {
         if (AppState::getInstance()->isVrEnabled) {
-            XPLMBringWindowToFront(window);
+            XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
             
             debug("VR is now enabled.");
-            XPLMSetWindowPositioningMode(window, xplm_WindowVR, -1);
             Dataref::getInstance()->bindExistingCommand("sim/VR/reserved/select", [](XPLMCommandPhase inPhase) {
                 if (inPhase == xplm_CommandBegin) {
                     mouseClicked(0, -1, -1, xplm_MouseDown, nullptr);
@@ -86,7 +84,19 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
         else {
             debug("VR is disabled.");
             Dataref::getInstance()->unbind("sim/VR/reserved/select");
-            XPLMSetWindowPositioningMode(window, xplm_WindowFullScreenOnMonitor, -1);
+            
+            XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
+        }
+    });
+    
+    AppState::getInstance()->executeOnVRMouseChanged([]() {
+        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+        if (AppState::getInstance()->isVrUsingMouse) {
+            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowVR, -1);
+        }
+        else {
+            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
         }
     });
     
@@ -100,8 +110,8 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
 PLUGIN_API void XPluginStop(void) {
     XPLMUnregisterDrawCallback(draw, xplm_Phase_Gauges, 0, nullptr);
     XPLMUnregisterFlightLoopCallback(update, nullptr);
-    XPLMDestroyWindow(window);
-    window = nullptr;
+    XPLMDestroyWindow(AppState::getInstance()->mainWindow);
+    AppState::getInstance()->mainWindow = nullptr;
     
     destroyCursor();
     captureClickEvents(false);
@@ -113,8 +123,8 @@ PLUGIN_API void XPluginStop(void) {
 PLUGIN_API int XPluginEnable(void) {
     Path::getInstance()->reloadPaths();
     
-    if (window) {
-        XPLMBringWindowToFront(window);
+    if (AppState::getInstance()->mainWindow) {
+        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
     }
     
     return 1;
@@ -122,7 +132,6 @@ PLUGIN_API int XPluginEnable(void) {
 
 PLUGIN_API void XPluginDisable(void) {
     debug("Disabling plugin...\n");
-    //AppState::getInstance()->deinitialize();
 }
 
 PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params) {
@@ -136,6 +145,12 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params)
             if (AppState::getInstance()->initialize()) {                
                 registerWindow();
                 captureClickEvents(true);
+                
+                #if DEBUG
+                    Dataref::getInstance()->createCommand("avitab_browser/debug/window_to_foreground", "Bring window to front", [](XPLMCommandPhase inPhase) {
+                        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+                    });
+                #endif
             }
             break;
             
@@ -221,8 +236,8 @@ void menuAction(void* mRef, void* iRef) {
     else if (!strcmp((char *)iRef, "ActionReloadConfig")) {
         AppState::getInstance()->loadConfig();
         
-        if (window) {
-            XPLMBringWindowToFront(window);
+        if (AppState::getInstance()->mainWindow) {
+            XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
         }
     }
 }
@@ -352,11 +367,11 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
     }
 #endif
     
-    if (AppState::getInstance()->browser->hasInputFocus() != XPLMHasKeyboardFocus(window)) {
+    if (AppState::getInstance()->browser->hasInputFocus() != XPLMHasKeyboardFocus(AppState::getInstance()->mainWindow)) {
         if (AppState::getInstance()->browser->hasInputFocus()) {
             AppState::getInstance()->browser->setFocus(true);
-            XPLMBringWindowToFront(window);
-            XPLMTakeKeyboardFocus(window);
+            XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+            XPLMTakeKeyboardFocus(AppState::getInstance()->mainWindow);
         }
         else {
             AppState::getInstance()->browser->setFocus(false);
@@ -397,10 +412,10 @@ void registerWindow() {
     params.layer = xplm_WindowLayerFlightOverlay;
     params.decorateAsFloatingWindow = xplm_WindowDecorationNone;
     
-    window = XPLMCreateWindowEx(&params);
-    XPLMSetWindowPositioningMode(window, xplm_WindowFullScreenOnMonitor, -1);
+    AppState::getInstance()->mainWindow = XPLMCreateWindowEx(&params);
+    XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
     
-    XPLMBringWindowToFront(window);
+    XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
 }
 
 void captureClickEvents(bool enable) {

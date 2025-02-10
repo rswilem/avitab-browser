@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <XPLMDisplay.h>
 #include "button.h"
 #include "browser.h"
 #include "statusbar.h"
@@ -45,7 +46,8 @@ enum AircraftVariant: unsigned char {
     VariantUnknown = 0,
     VariantZibo738,
     VariantFelis742,
-    VariantLevelUp737
+    VariantLevelUp737,
+    VariantJustFlight,
 };
 
 typedef std::function<void()> CallbackFunc;
@@ -69,10 +71,12 @@ private:
     bool loadAvitabConfig();
     bool fileExists(std::string filename);
     void determineAircraftVariant();
-    void vrStatusChanged();
+    void vrStatusChanged(bool mouseStatusChanged);
     std::vector<CallbackFunc> vrStatusChangedCallbacks;
+    std::vector<CallbackFunc> vrMouseChangedCallbacks;
 
 public:
+    XPLMWindowID mainWindow;
     float brightness;
     AvitabDimensions tabletDimensions;
     AppConfiguration config;
@@ -82,6 +86,7 @@ public:
     bool hasPower = false;
     bool browserVisible = false;
     bool isVrEnabled = false;
+    bool isVrUsingMouse = false;
     Statusbar *statusbar;
     Browser *browser;
     CursorType activeCursor;
@@ -101,8 +106,9 @@ public:
     void showBrowser(std::string url = "");
     void hideBrowser();
     void showNotification(Notification *notification);
-    void executeDelayed(CallbackFunc func, float delay);
+    void executeDelayed(CallbackFunc func, float delaySeconds);
     void executeOnVRStatusChanged(CallbackFunc func);
+    void executeOnVRMouseChanged(CallbackFunc func);
     bool loadConfig(bool isReloading = true);
 };
 

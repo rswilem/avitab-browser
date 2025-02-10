@@ -40,7 +40,7 @@ private:
 public:
     static Dataref* getInstance();
     
-    template <typename T> void bind(const char* ref, T* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+    template <typename T> void createDataref(const char* ref, T* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
     void bindExistingCommand(const char *command, CommandExecutedCallback callback);
     void createCommand(const char *command, const char *description, CommandExecutedCallback callback);
     int commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon);
