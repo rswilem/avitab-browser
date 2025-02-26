@@ -63,10 +63,12 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     XPluginReceiveMessage(0, XPLM_MSG_PLANE_LOADED, nullptr);
     
     AppState::getInstance()->executeOnVRStatusChanged([]() {
+        registerWindow();
+        
         if (AppState::getInstance()->isVrEnabled) {
             XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
             
-            debug("VR is now enabled.");
+            debug("VR is now enabled.\n");
             Dataref::getInstance()->bindExistingCommand("sim/VR/reserved/select", [](XPLMCommandPhase inPhase) {
                 if (inPhase == xplm_CommandBegin) {
                     mouseClicked(0, -1, -1, xplm_MouseDown, nullptr);
@@ -82,7 +84,7 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
             });
         }
         else {
-            debug("VR is disabled.");
+            debug("VR is disabled.\n");
             Dataref::getInstance()->unbind("sim/VR/reserved/select");
             
             XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
@@ -103,6 +105,16 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     initializeCursor();
     
     debug("Plugin started (version %s)\n", VERSION);
+    
+    #if DEBUG
+    Dataref::getInstance()->createCommand("avitab_browser/debug/window_to_foreground", "Bring window to front", [](XPLMCommandPhase inPhase) {
+        if (inPhase != xplm_CommandBegin) {
+            return;
+        }
+        
+        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+    });
+    #endif
     
     return 1;
 }
@@ -145,12 +157,6 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params)
             if (AppState::getInstance()->initialize()) {                
                 registerWindow();
                 captureClickEvents(true);
-                
-                #if DEBUG
-                    Dataref::getInstance()->createCommand("avitab_browser/debug/window_to_foreground", "Bring window to front", [](XPLMCommandPhase inPhase) {
-                        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
-                    });
-                #endif
             }
             break;
             
@@ -393,6 +399,11 @@ int draw(XPLMDrawingPhase inPhase, int inIsBefore, void * inRefcon) {
 }
 
 void registerWindow() {
+    if (AppState::getInstance()->mainWindow) {
+        XPLMDestroyWindow(AppState::getInstance()->mainWindow);
+        AppState::getInstance()->mainWindow = 0;
+    }
+    
     int winLeft, winTop, winRight, winBot;
     XPLMGetScreenBoundsGlobal(&winLeft, &winTop, &winRight, &winBot);
     XPLMCreateWindow_t params;
@@ -409,7 +420,7 @@ void registerWindow() {
     params.handleMouseWheelFunc = mouseWheel;
     params.handleKeyFunc = keyPressed;
     params.handleCursorFunc = mouseCursor;
-    params.layer = xplm_WindowLayerFlightOverlay;
+    params.layer = AppState::getInstance()->isVrEnabled ? xplm_WindowLayerFloatingWindows : xplm_WindowLayerFlightOverlay;
     params.decorateAsFloatingWindow = xplm_WindowDecorationNone;
     
     AppState::getInstance()->mainWindow = XPLMCreateWindowEx(&params);
