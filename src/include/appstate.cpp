@@ -447,7 +447,7 @@ url_5=
     config.minimum_width = reader.GetInteger("browser", "minimum_width", 0);
     config.scroll_speed = reader.GetInteger("browser", "scroll_speed", 5);
     config.forced_language = reader.Get("browser", "forced_language", "");
-    config.user_agent = reader.Get("browser", "user_agent", "");
+    config.user_agent = reader.GetString("browser", "user_agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.2.5.0 Safari/537.36");
     config.hide_addressbar = reader.GetBoolean("browser", "hide_addressbar", false);
     config.framerate = reader.GetInteger("browser", "framerate", 25);
     

@@ -202,8 +202,12 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
             <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
             <title>)" + std::string(FRIENDLY_NAME) + R"(</title>
             <script>
-                window.onload = () => {
+                function refreshUserAgent() {
                     document.getElementById('user-agent').textContent = navigator.userAgent;
+                }
+                
+                window.onload = () => {
+                    refreshUserAgent();
                 
                     navigator.geolocation.watchPosition(({coords}) => {
                         document.getElementById('location').textContent = `${coords.latitude}, ${coords.longitude} at ${coords.altitude}m ${coords.speed}m/s`;
@@ -219,7 +223,7 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                     <button onclick="javascript:alert(document.getElementById('alert-text').value || 'Test');">Show alert</button>
                 </div>
         
-                <div class="flex flex-col gap-2 text-xs">
+                <div class="flex flex-col gap-2 text-xs" onclick="refreshUserAgent();">
                     <span>User-Agent (JS)</span>
                     <span id="user-agent" />
                 </div>
@@ -300,7 +304,38 @@ void BrowserHandler::OnDocumentAvailableInMainFrame(CefRefPtr<CefBrowser> browse
         return;
     }
     
-    const char *js = R"(
+    const std::string javascript = R"(
+        function setUserAgent(window, userAgent) {
+            // Works on Firefox, Chrome, Opera and IE9+
+            if (navigator.__defineGetter__) {
+                navigator.__defineGetter__('userAgent', function () {
+                    return userAgent;
+                });
+            } else if (Object.defineProperty) {
+                Object.defineProperty(navigator, 'userAgent', {
+                    get: function () {
+                        return userAgent;
+                    }
+                });
+            }
+            // Works on Safari
+            if (window.navigator.userAgent !== userAgent) {
+                var userAgentProp = {
+                    get: function () {
+                        return userAgent;
+                    }
+                };
+                try {
+                    Object.defineProperty(window.navigator, 'userAgent', userAgentProp);
+                } catch (e) {
+                    window.navigator = Object.create(navigator, {
+                        userAgent: userAgentProp
+                    });
+                }
+            }
+        }
+    
+        setUserAgent(window, ")" + AppState::getInstance()->config.user_agent + R"(");
         window.avitab_watchers = {};
         navigator.permissions.query = (options) => {
           return Promise.resolve({
@@ -328,7 +363,7 @@ void BrowserHandler::OnDocumentAvailableInMainFrame(CefRefPtr<CefBrowser> browse
         };
     )";
     
-    browser->GetMainFrame()->ExecuteJavaScript(js, "about:blank", 0);
+    browser->GetMainFrame()->ExecuteJavaScript(javascript.c_str(), "about:blank", 0);
 }
 
 void BrowserHandler::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, const CefString &suggested_name, CefRefPtr<CefBeforeDownloadCallback> callback) {
@@ -356,26 +391,10 @@ cef_return_value_t BrowserHandler::OnBeforeResourceLoad(CefRefPtr<CefBrowser> br
         return RV_CONTINUE;
     }
 
-    // Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) X-Plane Safari/537.36
-    std::string userAgent = it->second.ToString();
-    
-    if (AppState::getInstance()->config.user_agent.empty()) {
-        size_t start = userAgent.find("X-Plane");
-        if (start != std::string::npos) {
-            size_t end = userAgent.find(" ", start);
-            if (end == std::string::npos) {
-                end = userAgent.length();
-            }
-            
-            userAgent.replace(start, end - start, "Chrome/117.2.5.0");
-        }
-    }
-    else {
-        userAgent = AppState::getInstance()->config.user_agent;
-    }
-    
+    //std::string userAgent = it->second.ToString();
+    // ^userAgent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) X-Plane Safari/537.36
     headers.erase("User-Agent");
-    headers.insert(std::make_pair("User-Agent", userAgent));
+    headers.insert(std::make_pair("User-Agent", AppState::getInstance()->config.user_agent));
     request->SetHeaderMap(headers);
     
     return RV_CONTINUE;
