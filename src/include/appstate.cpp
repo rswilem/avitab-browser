@@ -29,8 +29,6 @@ AppState::AppState() {
     browser = nullptr;
     activeCursor = CursorDefault;
     brightness = 1.0f;
-    isVrEnabled = false;
-    isVrUsingMouse = false;
 }
 
 AppState::~AppState() {
@@ -126,8 +124,6 @@ void AppState::deinitialize() {
     
     Dataref::getInstance()->destroyAllBindings();
     
-    vrMouseChangedCallbacks.clear();
-    vrStatusChangedCallbacks.clear();
     tasks.clear();
     buttons.clear();
     notification = nullptr;
@@ -259,20 +255,6 @@ void AppState::update() {
         }),
         tasks.end()
     );
-    
-    bool datarefVrEnabled = Dataref::getInstance()->getCached<int>("sim/graphics/VR/enabled");
-    if (isVrEnabled != datarefVrEnabled) {
-        isVrEnabled = datarefVrEnabled;
-        vrStatusChanged(false);
-    }
-    
-    if (isVrEnabled) {
-        bool datarefVrUsingMouse = Dataref::getInstance()->getCached<int>("sim/graphics/VR/using_3d_mouse");
-        if (isVrUsingMouse != datarefVrUsingMouse) {
-            isVrUsingMouse = datarefVrUsingMouse;
-            vrStatusChanged(true);
-        }
-    }
 }
 
 void AppState::draw() {
@@ -360,14 +342,6 @@ void AppState::executeDelayed(CallbackFunc func, float delaySeconds) {
         func,
         XPLMGetElapsedTime() + delaySeconds
     });
-}
-
-void AppState::executeOnVRStatusChanged(CallbackFunc func) {
-    vrStatusChangedCallbacks.push_back(func);
-}
-
-void AppState::executeOnVRMouseChanged(CallbackFunc func) {
-    vrMouseChangedCallbacks.push_back(func);
 }
 
 bool AppState::loadConfig(bool isReloading) {
@@ -616,17 +590,4 @@ void AppState::determineAircraftVariant() {
     }
     
     aircraftVariant = VariantUnknown;
-}
-
-void AppState::vrStatusChanged(bool mouseStatusChanged) {
-    if (mouseStatusChanged) {
-        for (auto& callback : vrMouseChangedCallbacks) {
-            callback();
-        }
-    }
-    else {
-        for (auto& callback : vrStatusChangedCallbacks) {
-            callback();
-        }
-    }
 }

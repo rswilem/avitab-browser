@@ -9,7 +9,7 @@ using namespace std;
 Dataref *Dataref::instance = nullptr;
 
 int handleCommandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon) {
-    return Dataref::getInstance()->commandCallback(inCommand, inPhase, inRefcon);
+    return Dataref::getInstance()->_commandCallback(inCommand, inPhase, inRefcon);
 }
 
 Dataref::Dataref() {
@@ -32,19 +32,39 @@ Dataref* Dataref::getInstance() {
     return instance;
 }
 
-template void Dataref::createDataref<int>(const char* ref, int* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
-template void Dataref::createDataref<bool>(const char* ref, bool* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
-template void Dataref::createDataref<float>(const char* ref, float* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
-template void Dataref::createDataref<std::string>(const char* ref, std::string* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+template void Dataref::createDataref<int>(const char* ref, int* value, bool writable = false, DatarefShouldChangeCallback<int> changeCallback = nullptr);
+template void Dataref::createDataref<bool>(const char* ref, bool* value, bool writable = false, DatarefShouldChangeCallback<bool> changeCallback = nullptr);
+template void Dataref::createDataref<float>(const char* ref, float* value, bool writable = false, DatarefShouldChangeCallback<float> changeCallback = nullptr);
+template void Dataref::createDataref<double>(const char* ref, double* value, bool writable = false, DatarefShouldChangeCallback<double> changeCallback = nullptr);
+template void Dataref::createDataref<std::string>(const char* ref, std::string* value, bool writable = false, DatarefShouldChangeCallback<std::string> changeCallback = nullptr);
 template <typename T>
-void Dataref::createDataref(const char* ref, T *value, bool writable, BoundRefChangeCallback changeCallback) {
+void Dataref::createDataref(const char* ref, T *value, bool writable, DatarefShouldChangeCallback<T> changeCallback) {
     unbind(ref);
     
     XPLMDataRef handle = nullptr;
     boundRefs[ref] = {
         handle,
         value,
-        changeCallback
+        [changeCallback](DataRefValueType newValue) -> bool {
+            if constexpr (std::is_same_v<T, std::string>) {
+                if (std::holds_alternative<std::string>(newValue)) {
+                    return changeCallback(std::get<std::string>(newValue));
+                }
+            } else if constexpr (std::is_same_v<T, int> || std::is_same_v<T, bool>) {
+                if (std::holds_alternative<int>(newValue)) {
+                    return changeCallback(std::get<int>(newValue));
+                }
+            } else if constexpr (std::is_same_v<T, float>) {
+                if (std::holds_alternative<float>(newValue)) {
+                    return changeCallback(std::get<float>(newValue));
+                }
+            } else if constexpr (std::is_same_v<T, double>) {
+                if (std::holds_alternative<double>(newValue)) {
+                    return changeCallback(std::get<double>(newValue));
+                }
+            }
+            return false;
+        }
     };
     
     if constexpr ((std::is_same<T, int>::value) || (std::is_same<T, bool>::value)) {
@@ -59,7 +79,7 @@ void Dataref::createDataref(const char* ref, T *value, bool writable, BoundRefCh
                                             T* valuePtr = static_cast<T*>(info->valuePointer);
             
                                             if (info->changeCallback) {
-                                                if (info->changeCallback(&inValue)) {
+                                                if (info->changeCallback(inValue)) {
                                                     *valuePtr = inValue;
                                                 }
                                             }
@@ -76,7 +96,60 @@ void Dataref::createDataref(const char* ref, T *value, bool writable, BoundRefCh
                                           &boundRefs[ref]);  // Write refcon
     }
     else if constexpr (std::is_same<T, float>::value) {
-        
+        handle = XPLMRegisterDataAccessor(ref,
+                                          xplmType_Float,
+                                          writable ? 1 : 0,
+                                          nullptr, nullptr, // Int
+                                          [](void* inRefcon) -> T {
+                                            return *static_cast<T*>(inRefcon);
+                                          },
+                                          [](void* inRefcon, T inValue) {
+                                            BoundRef* info = static_cast<BoundRef*>(inRefcon);
+                                            T* valuePtr = static_cast<T*>(info->valuePointer);
+            
+                                            if (info->changeCallback) {
+                                                if (info->changeCallback(inValue)) {
+                                                    *valuePtr = inValue;
+                                                }
+                                            }
+                                            else {
+                                                *valuePtr = inValue;
+                                            }
+                                          },
+                                          nullptr, nullptr, // Double
+                                          nullptr, nullptr, // Int array
+                                          nullptr, nullptr, // Float array
+                                          nullptr, nullptr, // Binary
+                                          value, // Read refcon
+                                          &boundRefs[ref]);  // Write refcon
+    }
+    else if constexpr (std::is_same<T, double>::value) {
+        handle = XPLMRegisterDataAccessor(ref,
+                                          xplmType_Double,
+                                          writable ? 1 : 0,
+                                          nullptr, nullptr, // Int
+                                          nullptr, nullptr, // Float
+                                          [](void* inRefcon) -> T {
+                                            return *static_cast<T*>(inRefcon);
+                                          },
+                                          [](void* inRefcon, T inValue) {
+                                            BoundRef* info = static_cast<BoundRef*>(inRefcon);
+                                            T* valuePtr = static_cast<T*>(info->valuePointer);
+            
+                                            if (info->changeCallback) {
+                                                if (info->changeCallback(inValue)) {
+                                                    *valuePtr = inValue;
+                                                }
+                                            }
+                                            else {
+                                                *valuePtr = inValue;
+                                            }
+                                          },
+                                          nullptr, nullptr, // Int array
+                                          nullptr, nullptr, // Float array
+                                          nullptr, nullptr, // Binary
+                                          value, // Read refcon
+                                          &boundRefs[ref]);  // Write refcon
     }
     else if constexpr (std::is_same<T, std::string>::value) {
         handle = XPLMRegisterDataAccessor(ref,
@@ -97,7 +170,8 @@ void Dataref::createDataref(const char* ref, T *value, bool writable, BoundRefCh
                                             T* valuePtr = static_cast<T*>(info->valuePointer);
                                             
                                             if (info->changeCallback) {
-                                                if (info->changeCallback(inValue)) {
+                                                std::string newValue = std::string(static_cast<const char *>(inValue));
+                                                if (info->changeCallback(newValue)) {
                                                     *valuePtr = (const char *)inValue;
                                                 }
                                             }
@@ -110,6 +184,47 @@ void Dataref::createDataref(const char* ref, T *value, bool writable, BoundRefCh
     }
     
     boundRefs[ref].handle = handle;
+}
+
+template void Dataref::monitorExistingDataref<int>(const char* ref, DatarefMonitorChangedCallback<int> changeCallback);
+template void Dataref::monitorExistingDataref<bool>(const char* ref, DatarefMonitorChangedCallback<bool> changeCallback);
+template void Dataref::monitorExistingDataref<float>(const char* ref, DatarefMonitorChangedCallback<float> changeCallback);
+template void Dataref::monitorExistingDataref<double>(const char* ref, DatarefMonitorChangedCallback<double> changeCallback);
+template void Dataref::monitorExistingDataref<std::string>(const char* ref, DatarefMonitorChangedCallback<std::string> changeCallback);
+template <typename T>
+void Dataref::monitorExistingDataref(const char* ref, DatarefMonitorChangedCallback<T> changeCallback) {
+    if constexpr (std::is_same<T, std::string>::value) {
+        set<T>(ref, "", true);
+    }
+    else {
+        set<T>(ref, 0, true);
+    }
+    
+    boundRefs[ref] = {
+        0,
+        nullptr,
+        [changeCallback](DataRefValueType newValue) -> bool {
+            if constexpr (std::is_same_v<T, std::string>) {
+                if (std::holds_alternative<std::string>(newValue)) {
+                    changeCallback(std::get<std::string>(newValue));
+                }
+            } else if constexpr (std::is_same_v<T, int> || std::is_same_v<T, bool>) {
+                if (std::holds_alternative<int>(newValue)) {
+                    changeCallback(std::get<int>(newValue));
+                }
+            } else if constexpr (std::is_same_v<T, float>) {
+                if (std::holds_alternative<float>(newValue)) {
+                    changeCallback(std::get<float>(newValue));
+                }
+            } else if constexpr (std::is_same_v<T, double>) {
+                if (std::holds_alternative<double>(newValue)) {
+                    changeCallback(std::get<double>(newValue));
+                }
+            }
+            
+            return false;
+        }
+    };
 }
 
 void Dataref::destroyAllBindings(){
@@ -127,7 +242,9 @@ void Dataref::destroyAllBindings(){
 void Dataref::unbind(const char *ref) {
     auto it = boundRefs.find(ref);
     if (it != boundRefs.end()) {
-        XPLMUnregisterDataAccessor(it->second.handle);
+        if (it->second.handle) {
+            XPLMUnregisterDataAccessor(it->second.handle);
+        }
         boundRefs.erase(it);
     }
     
@@ -142,7 +259,16 @@ void Dataref::update() {
     for (auto& [key, data] : cachedValues) {
         std::visit([&](auto&& value) {
             using T = std::decay_t<decltype(value)>;
-            cachedValues[key] = get<T>(key.c_str());
+            T newValue = get<T>(key.c_str());
+            bool didChange = value != newValue;
+            cachedValues[key] = newValue;
+            
+            if (didChange) {
+                auto it = boundRefs.find(key);
+                if (it != boundRefs.end()) {
+                    boundRefs[key].changeCallback(cachedValues[key]);
+                }
+            }
         }, data);
     }
 }
@@ -228,6 +354,7 @@ T Dataref::getCached(const char *ref) {
 
 template float Dataref::get<float>(const char* ref);
 template int Dataref::get<int>(const char* ref);
+template bool Dataref::get<bool>(const char* ref);
 template std::vector<int> Dataref::get<std::vector<int>>(const char* ref);
 template std::string Dataref::get<std::string>(const char* ref);
 template <typename T>
@@ -248,6 +375,9 @@ T Dataref::get(const char *ref) {
     if constexpr (std::is_same<T, int>::value) {
         return XPLMGetDatai(handle);
     }
+    else if constexpr (std::is_same<T, bool>::value) {
+        return XPLMGetDatai(handle) > 0;
+    }
     else if constexpr (std::is_same<T, float>::value) {
         return XPLMGetDataf(handle);
     }
@@ -257,12 +387,12 @@ T Dataref::get(const char *ref) {
         XPLMGetDatavi(handle, outValues.data(), 0, size);
         return outValues;
     }
-    /*else if constexpr (std::is_same<T, std::string>::value) {
+    else if constexpr (std::is_same<T, std::string>::value) {
         int size = XPLMGetDatab(handle, nullptr, 0, 0);
         char str[size];
         XPLMGetDatab(handle, &str, 0, size);
         return std::string(str);
-    }*/
+    }
     
     if constexpr (std::is_same<T, std::string>::value) {
         return "";
@@ -277,6 +407,7 @@ T Dataref::get(const char *ref) {
 
 template void Dataref::set<float>(const char* ref, float value, bool setCacheOnly);
 template void Dataref::set<int>(const char* ref, int value, bool setCacheOnly);
+template void Dataref::set<std::string>(const char* ref, std::string value, bool setCacheOnly);
 template <typename T>
 void Dataref::set(const char* ref, T value, bool setCacheOnly) {
     XPLMDataRef handle = findRef(ref);
@@ -286,23 +417,19 @@ void Dataref::set(const char* ref, T value, bool setCacheOnly) {
     
     cachedValues[ref] = value;
     
+    if (setCacheOnly) {
+        return;
+    }
+    
     if constexpr (std::is_same<T, int>::value) {
-        if (!setCacheOnly) {
-            XPLMSetDatai(handle, value);
-        }
+        XPLMSetDatai(handle, value);
     }
     else if constexpr (std::is_same<T, float>::value) {
-        if (!setCacheOnly) {
-            XPLMSetDataf(handle, value);
-        }
+        XPLMSetDataf(handle, value);
     }
-    // TODO: Set binary data
-//    else if constexpr (std::is_same<T, std::string>::value) {
-//        int size = XPLMGetDatab(handle, nullptr, 0, 0);
-//        char str[size];
-//        XPLMGetDatab(handle, &str, 0, size);
-//        return std::string(str);
-//    }
+    else if constexpr (std::is_same<T, std::string>::value) {
+        XPLMSetDatab(handle, (char *)value.c_str(), 0, (unsigned int)value.length());
+    }
 }
 
 void Dataref::executeCommand(const char *command) {
@@ -342,7 +469,7 @@ void Dataref::createCommand(const char *command, const char *description, Comman
     bindExistingCommand(command, callback);
 }
 
-int Dataref::commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon) {
+int Dataref::_commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon) {
     for (const auto& entry : boundCommands) {
         XPLMCommandRef handle = entry.second.handle;
         if (inCommand == handle) {

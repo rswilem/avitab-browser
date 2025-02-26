@@ -71,9 +71,6 @@ private:
     bool loadAvitabConfig();
     bool fileExists(std::string filename);
     void determineAircraftVariant();
-    void vrStatusChanged(bool mouseStatusChanged);
-    std::vector<CallbackFunc> vrStatusChangedCallbacks;
-    std::vector<CallbackFunc> vrMouseChangedCallbacks;
 
 public:
     XPLMWindowID mainWindow;
@@ -85,8 +82,6 @@ public:
     bool shouldCaptureClickEvents = false;
     bool hasPower = false;
     bool browserVisible = false;
-    bool isVrEnabled = false;
-    bool isVrUsingMouse = false;
     Statusbar *statusbar;
     Browser *browser;
     CursorType activeCursor;
@@ -107,8 +102,6 @@ public:
     void hideBrowser();
     void showNotification(Notification *notification);
     void executeDelayed(CallbackFunc func, float delaySeconds);
-    void executeOnVRStatusChanged(CallbackFunc func);
-    void executeOnVRMouseChanged(CallbackFunc func);
     bool loadConfig(bool isReloading = true);
 };
 

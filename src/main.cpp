@@ -38,6 +38,7 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
 int mouseClicked(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus status, void* inRefcon);
 void menuAction(void* mRef, void* iRef);
 void registerWindow();
+void captureVrChanges();
 void captureClickEvents(bool enable);
 
 unsigned char pressedKeyCode = 0;
@@ -62,46 +63,7 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     
     XPluginReceiveMessage(0, XPLM_MSG_PLANE_LOADED, nullptr);
     
-    AppState::getInstance()->executeOnVRStatusChanged([]() {
-        registerWindow();
-        
-        if (AppState::getInstance()->isVrEnabled) {
-            XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
-            
-            debug("VR is now enabled.\n");
-            Dataref::getInstance()->bindExistingCommand("sim/VR/reserved/select", [](XPLMCommandPhase inPhase) {
-                if (inPhase == xplm_CommandBegin) {
-                    mouseClicked(0, -1, -1, xplm_MouseDown, nullptr);
-                }
-                else if (inPhase == xplm_CommandContinue) {
-                    mouseClicked(0, -1, -1, xplm_MouseDrag, nullptr);
-                }
-                else if (inPhase == xplm_CommandEnd) {
-                    mouseClicked(0, -1, -1, xplm_MouseUp, nullptr);
-                }
-                
-                return 1;
-            });
-        }
-        else {
-            debug("VR is disabled.\n");
-            Dataref::getInstance()->unbind("sim/VR/reserved/select");
-            
-            XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
-            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
-        }
-    });
-    
-    AppState::getInstance()->executeOnVRMouseChanged([]() {
-        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
-        if (AppState::getInstance()->isVrUsingMouse) {
-            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowVR, -1);
-        }
-        else {
-            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
-        }
-    });
-    
+    captureVrChanges();
     initializeCursor();
     
     debug("Plugin started (version %s)\n", VERSION);
@@ -236,7 +198,7 @@ void menuAction(void* mRef, void* iRef) {
         params.decorateAsFloatingWindow = xplm_WindowDecorationRoundRectangle;
         XPLMWindowID aboutWindow = XPLMCreateWindowEx(&params);
         XPLMSetWindowTitle(aboutWindow, FRIENDLY_NAME);
-        XPLMSetWindowPositioningMode(aboutWindow, AppState::getInstance()->isVrEnabled ? xplm_WindowVR : xplm_WindowPositionFree, -1);
+        XPLMSetWindowPositioningMode(aboutWindow, Dataref::getInstance()->get<bool>("sim/graphics/VR/enabled") ? xplm_WindowVR : xplm_WindowPositionFree, -1);
         XPLMBringWindowToFront(aboutWindow);
     }
     else if (!strcmp((char *)iRef, "ActionReloadConfig")) {
@@ -420,13 +382,58 @@ void registerWindow() {
     params.handleMouseWheelFunc = mouseWheel;
     params.handleKeyFunc = keyPressed;
     params.handleCursorFunc = mouseCursor;
-    params.layer = AppState::getInstance()->isVrEnabled ? xplm_WindowLayerFloatingWindows : xplm_WindowLayerFlightOverlay;
+    params.layer = Dataref::getInstance()->get<bool>("sim/graphics/VR/enabled") ? xplm_WindowLayerFloatingWindows : xplm_WindowLayerFlightOverlay;
     params.decorateAsFloatingWindow = xplm_WindowDecorationNone;
     
     AppState::getInstance()->mainWindow = XPLMCreateWindowEx(&params);
     XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
     
     XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+}
+
+void captureVrChanges() {
+    std::function setVrWindowPositioningMode = [](){
+        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+        
+        if (Dataref::getInstance()->get<bool>("sim/graphics/VR/using_3d_mouse")) {
+            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowVR, -1);
+        }
+        else {
+            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
+        }
+    };
+    
+    Dataref::getInstance()->monitorExistingDataref<bool>("sim/graphics/VR/enabled", [setVrWindowPositioningMode](bool isVrEnabled) {
+        registerWindow();
+        
+        if (isVrEnabled) {
+            setVrWindowPositioningMode();
+            
+            debug("VR is now enabled.\n");
+            Dataref::getInstance()->bindExistingCommand("sim/VR/reserved/select", [](XPLMCommandPhase inPhase) {
+                if (inPhase == xplm_CommandBegin) {
+                    mouseClicked(0, -1, -1, xplm_MouseDown, nullptr);
+                }
+                else if (inPhase == xplm_CommandContinue) {
+                    mouseClicked(0, -1, -1, xplm_MouseDrag, nullptr);
+                }
+                else if (inPhase == xplm_CommandEnd) {
+                    mouseClicked(0, -1, -1, xplm_MouseUp, nullptr);
+                }
+                
+                return 1;
+            });
+        }
+        else {
+            debug("VR is disabled.\n");
+            Dataref::getInstance()->unbind("sim/VR/reserved/select");
+            setVrWindowPositioningMode();
+        }
+    });
+    
+    Dataref::getInstance()->monitorExistingDataref<bool>("sim/graphics/VR/using_3d_mouse", [setVrWindowPositioningMode](bool isVrUsingMouse) {
+        setVrWindowPositioningMode();
+    });
 }
 
 void captureClickEvents(bool enable) {

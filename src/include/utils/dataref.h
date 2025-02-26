@@ -8,11 +8,14 @@
 #include <XPLMUtilities.h>
 #include <XPLMDataAccess.h>
 
-typedef std::function<bool(void *value)> BoundRefChangeCallback;
+using DataRefValueType = std::variant<int, float, double, std::string, std::vector<int>>;
+template <typename T> using DatarefShouldChangeCallback = std::function<bool(T)>;
+template <typename T> using DatarefMonitorChangedCallback = std::function<void(T)>;
+
 struct BoundRef {
     XPLMDataRef handle;
     void *valuePointer;
-    BoundRefChangeCallback changeCallback;
+    DatarefShouldChangeCallback<DataRefValueType> changeCallback;
 };
 
 typedef std::function<void(XPLMCommandPhase inPhase)> CommandExecutedCallback;
@@ -29,7 +32,7 @@ private:
     std::unordered_map<std::string, BoundRef> boundRefs;
     std::unordered_map<std::string, BoundCommand> boundCommands;
     std::unordered_map<std::string, XPLMDataRef> refs;
-    std::unordered_map<std::string, std::variant<int, float, std::string, std::vector<int>>> cachedValues;
+    std::unordered_map<std::string, DataRefValueType> cachedValues;
     XPLMDataRef findRef(const char* ref);
     float lastMouseX;
     float lastMouseY;
@@ -40,12 +43,14 @@ private:
 public:
     static Dataref* getInstance();
     
-    template <typename T> void createDataref(const char* ref, T* value, bool writable = false, BoundRefChangeCallback changeCallback = nullptr);
+    template <typename T> void monitorExistingDataref(const char *ref, DatarefMonitorChangedCallback<T> callback);
+    template <typename T> void createDataref(const char* ref, T* value, bool writable = false, DatarefShouldChangeCallback<T> changeCallback = nullptr);
     void bindExistingCommand(const char *command, CommandExecutedCallback callback);
     void createCommand(const char *command, const char *description, CommandExecutedCallback callback);
-    int commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon);
     void unbind(const char *ref);
     void destroyAllBindings();
+    int _commandCallback(XPLMCommandRef inCommand, XPLMCommandPhase inPhase, void *inRefcon);
+    
 
     void update();
     bool getMouse(float *normalizedX, float *normalizedY, float windowX = 0, float windowY = 0);
