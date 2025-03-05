@@ -48,6 +48,7 @@ enum AircraftVariant: unsigned char {
     VariantFelis742,
     VariantLevelUp737,
     VariantJustFlight,
+    VariantIXEG737,
 };
 
 typedef std::function<void()> CallbackFunc;

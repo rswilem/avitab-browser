@@ -589,5 +589,11 @@ void AppState::determineAircraftVariant() {
         return;
     }
     
+    std::string ixegTextFile = Path::getInstance()->aircraftDirectory + "/IXEG_user_prefs.txt";
+    if (std::filesystem::exists(ixegTextFile)) {
+        aircraftVariant = VariantIXEG737;
+        return;
+    }
+    
     aircraftVariant = VariantUnknown;
 }
