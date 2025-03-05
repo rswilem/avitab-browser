@@ -432,13 +432,21 @@ void Dataref::set(const char* ref, T value, bool setCacheOnly) {
     }
 }
 
-void Dataref::executeCommand(const char *command) {
+void Dataref::executeCommand(const char *command, XPLMCommandPhase phase) {
     XPLMCommandRef ref = XPLMFindCommand(command);
     if (!ref) {
         return;
     }
     
-    XPLMCommandOnce(ref);
+    if (phase == -1) {
+        XPLMCommandOnce(ref);
+    }
+    else if (phase == xplm_CommandBegin) {
+        XPLMCommandBegin(ref);
+    }
+    else if (phase == xplm_CommandEnd) {
+        XPLMCommandEnd(ref);
+    }
 }
 
 void Dataref::bindExistingCommand(const char *command, CommandExecutedCallback callback) {

@@ -76,6 +76,10 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
         
         XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
     });
+    
+    Dataref::getInstance()->createCommand("avitab_browser/debug/vr_click_proxy", "sim/VR/reserved/select", [](XPLMCommandPhase inPhase) {
+        Dataref::getInstance()->executeCommand("sim/VR/reserved/select", inPhase);
+    });
     #endif
     
     return 1;
