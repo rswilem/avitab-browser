@@ -209,9 +209,9 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                 function didLoad() {
                     refreshUserAgent();
                 
-                    navigator.geolocation.watchPosition(({coords, wind}) => {
-                        document.getElementById('location').textContent = `${coords.latitude}, ${coords.longitude} at ${coords.altitude}m ${coords.speed}m/s`;
-                        document.getElementById('wind').textContent = `${wind.direction}deg / ${wind.speedKts}kts`;
+                    navigator.geolocation.watchPosition(({coords, wind, extra}) => {
+                        document.getElementById('location').textContent = `${coords.latitude}, ${coords.longitude} at ${coords.altitude}m msl, ${extra.altitudeAgl}m agl - ${coords.speed}m/s`;
+                        document.getElementById('wind').textContent = `${wind.direction}deg / ${wind.speedKts}kts - Airspeed: ${extra.airspeedKts}kts`;
                     });
                 }
                 

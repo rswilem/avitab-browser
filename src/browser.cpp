@@ -597,11 +597,14 @@ void Browser::updateGPSLocation() {
     float latitude = Dataref::getInstance()->get<float>("sim/flightmodel/position/latitude");
     float longitude = Dataref::getInstance()->get<float>("sim/flightmodel/position/longitude");
     float speedMetersSecond = Dataref::getInstance()->get<float>("sim/flightmodel/position/groundspeed");
-    float altitudeMeters = Dataref::getInstance()->get<float>("sim/flightmodel/position/y_agl");
+    float altitudeMetersAboveSeaLevel = Dataref::getInstance()->get<float>("sim/flightmodel/position/elevation");
     float magneticHeading = Dataref::getInstance()->get<float>("sim/flightmodel/position/mag_psi");
     
     float windDirection = Dataref::getInstance()->get<float>("sim/weather/wind_direction_degt");
     float windSpeed = Dataref::getInstance()->get<float>("sim/weather/wind_speed_kt");
+    
+    float altitudeMetersAboveGroundLevel = Dataref::getInstance()->get<float>("sim/flightmodel/position/y_agl");
+    float airspeedKts = Dataref::getInstance()->get<float>("sim/flightmodel/position/indicated_airspeed");
     
     std::stringstream stream;
     stream << "window.avitab_location = { ";
@@ -609,7 +612,7 @@ void Browser::updateGPSLocation() {
     stream << "latitude: " << std::fixed << std::setprecision(6) << latitude << ", ";
     stream << "longitude: " << std::fixed << std::setprecision(6) << longitude << ", ";
     stream << "accuracy: 10, ";
-    stream << "altitude: " << std::fixed << std::setprecision(0) << altitudeMeters << ", ";
+    stream << "altitude: " << std::fixed << std::setprecision(0) << altitudeMetersAboveSeaLevel << ", ";
     stream << "altitudeAccuracy: 10, ";
     stream << "heading: " << std::fixed << std::setprecision(0) << magneticHeading << ", ";
     stream << "speed: " << std::fixed << std::setprecision(0) << speedMetersSecond << ", ";
@@ -617,6 +620,10 @@ void Browser::updateGPSLocation() {
     stream << "wind: { ";
     stream << "direction: " << std::fixed << std::setprecision(0) << windDirection << ", ";
     stream << "speedKts: " << std::fixed << std::setprecision(0) << windSpeed << ", ";
+    stream << "}, ";
+    stream << "extra: { ";
+    stream << "altitudeAgl: " << std::fixed << std::setprecision(0) << altitudeMetersAboveGroundLevel << ", ";
+    stream << "airspeedKts: " << std::fixed << std::setprecision(0) << airspeedKts << ", ";
     stream <<  "}, timestamp: Date.now() }; for (let key in window.avitab_watchers) { window.avitab_watchers[key](window.avitab_location); }";
     
     handler->browserInstance->GetMainFrame()->ExecuteJavaScript(stream.str(), handler->browserInstance->GetMainFrame()->GetURL(), 0);
