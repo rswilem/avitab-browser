@@ -20,6 +20,7 @@ private:
     unsigned short windowWidth;
     unsigned short windowHeight;
     void injectAddressBar(CefRefPtr<CefBrowser> browser);
+    void overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser);
     
 public:
     BrowserHandler(int textureId, std::string* currentUrl, unsigned short width, unsigned short height);

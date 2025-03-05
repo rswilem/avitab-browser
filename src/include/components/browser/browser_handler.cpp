@@ -206,13 +206,21 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                     document.getElementById('user-agent').textContent = navigator.userAgent;
                 }
                 
-                window.onload = () => {
+                function didLoad() {
                     refreshUserAgent();
                 
-                    navigator.geolocation.watchPosition(({coords}) => {
+                    navigator.geolocation.watchPosition(({coords, wind}) => {
                         document.getElementById('location').textContent = `${coords.latitude}, ${coords.longitude} at ${coords.altitude}m ${coords.speed}m/s`;
+                        document.getElementById('wind').textContent = `${wind.direction}deg / ${wind.speedKts}kts`;
                     });
-                };
+                }
+                
+                if (document.readyState === "complete") {
+                    didLoad();
+                }
+                else {
+                    window.addEventListener("load", didLoad);
+                }
             </script>
         </head>
         <body class="flex flex-col items-center justify-start w-full">
@@ -221,16 +229,6 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                 <div>
                     <input id="alert-text" placeholder="Type here" />
                     <button onclick="javascript:alert(document.getElementById('alert-text').value || 'Test');">Show alert</button>
-                </div>
-        
-                <div class="flex flex-col gap-2 text-xs" onclick="refreshUserAgent();">
-                    <span>User-Agent (JS)</span>
-                    <span id="user-agent" />
-                </div>
-        
-                <div class="flex flex-col gap-2 text-xs">
-                    <span>Location</span>
-                    <span id="location" />
                 </div>
         
                 <div>
@@ -256,6 +254,23 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                         <option>Option 19</option>
                         <option>Option 20</option>
                     </select>
+                </div>
+        
+                <div class="flex flex-col w-full">
+                    <div class="flex flex-col gap-2 text-xs" onclick="refreshUserAgent();">
+                        <span>User-Agent (JS)</span>
+                        <span id="user-agent">not_loaded</span>
+                    </div>
+            
+                    <div class="flex flex-col gap-2 text-xs">
+                        <span>Location</span>
+                        <span id="location">not_loaded</span>
+                    </div>
+            
+                    <div class="flex flex-col gap-2 text-xs">
+                        <span>Wind</span>
+                        <span id="wind">not_loaded</span>
+                    </div>
                 </div>
             </div>
         </body>
@@ -304,66 +319,7 @@ void BrowserHandler::OnDocumentAvailableInMainFrame(CefRefPtr<CefBrowser> browse
         return;
     }
     
-    const std::string javascript = R"(
-        function setUserAgent(window, userAgent) {
-            // Works on Firefox, Chrome, Opera and IE9+
-            if (navigator.__defineGetter__) {
-                navigator.__defineGetter__('userAgent', function () {
-                    return userAgent;
-                });
-            } else if (Object.defineProperty) {
-                Object.defineProperty(navigator, 'userAgent', {
-                    get: function () {
-                        return userAgent;
-                    }
-                });
-            }
-            // Works on Safari
-            if (window.navigator.userAgent !== userAgent) {
-                var userAgentProp = {
-                    get: function () {
-                        return userAgent;
-                    }
-                };
-                try {
-                    Object.defineProperty(window.navigator, 'userAgent', userAgentProp);
-                } catch (e) {
-                    window.navigator = Object.create(navigator, {
-                        userAgent: userAgentProp
-                    });
-                }
-            }
-        }
-    
-        setUserAgent(window, ")" + AppState::getInstance()->config.user_agent + R"(");
-        window.avitab_watchers = {};
-        navigator.permissions.query = (options) => {
-          return Promise.resolve({
-            state: "granted",
-          });
-        };
-    
-        navigator.geolocation.watchPosition = (success, error, options) => {
-          window.avitab_watchers = (window.avitab_watchers || {});
-          const id = Math.round(Date.now() / 1000);
-          window.avitab_watchers[id] = success;
-          return id;
-        };
-    
-        navigator.geolocation.clearWatch = (id) => {
-          if (!window.avitab_watchers) { return; }
-          delete window.avitab_watchers[id];
-        };
-    
-        navigator.geolocation.getCurrentPosition = (success, error, options) => {
-          const wid = navigator.geolocation.watchPosition(()=>{
-            success(window.avitab_location || null);
-            navigator.geolocation.clearWatch(wid);
-          }, error, options);
-        };
-    )";
-    
-    browser->GetMainFrame()->ExecuteJavaScript(javascript.c_str(), "about:blank", 0);
+    overrideGeolocationAndNavigator(browser);
 }
 
 void BrowserHandler::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, const CefString &suggested_name, CefRefPtr<CefBeforeDownloadCallback> callback) {
@@ -405,7 +361,73 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
         return;
     }
     
+    overrideGeolocationAndNavigator(browser);
     injectAddressBar(browser);
+}
+
+void BrowserHandler::overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser) {
+    const std::string javascript = R"(
+        function setUserAgent(window, userAgent) {
+            // Works on Firefox, Chrome, Opera and IE9+
+            if (navigator.__defineGetter__) {
+                navigator.__defineGetter__('userAgent', function () {
+                    return userAgent;
+                });
+            } else if (Object.defineProperty) {
+                Object.defineProperty(navigator, 'userAgent', {
+                    get: function () {
+                        return userAgent;
+                    }
+                });
+            }
+            // Works on Safari
+            if (window.navigator.userAgent !== userAgent) {
+                var userAgentProp = {
+                    get: function () {
+                        return userAgent;
+                    }
+                };
+                try {
+                    Object.defineProperty(window.navigator, 'userAgent', userAgentProp);
+                } catch (e) {
+                    window.navigator = Object.create(navigator, {
+                        userAgent: userAgentProp
+                    });
+                }
+            }
+        }
+    
+        window.avitab_watchers = (window.avitab_watchers || {});
+        navigator.permissions.query = (options) => {
+          return Promise.resolve({
+            state: "granted",
+          });
+        };
+    
+        navigator.geolocation.watchPosition = (success, error, options) => {
+          window.avitab_watchers = (window.avitab_watchers || {});
+          const id = Math.round(Date.now() / 1000);
+          window.avitab_watchers[id] = success;
+          return id;
+        };
+    
+        navigator.geolocation.clearWatch = (id) => {
+          if (!window.avitab_watchers) { return; }
+          delete window.avitab_watchers[id];
+        };
+    
+        navigator.geolocation.getCurrentPosition = (success, error, options) => {
+          const wid = navigator.geolocation.watchPosition(()=>{
+            success(window.avitab_location || null);
+            navigator.geolocation.clearWatch(wid);
+          }, error, options);
+        };
+        
+        setUserAgent(window, ")" + AppState::getInstance()->config.user_agent + R"(");
+        window.dispatchEvent(new Event("load"));
+    )";
+    
+    browser->GetMainFrame()->ExecuteJavaScript(javascript.c_str(), browser->GetMainFrame()->GetURL(), 0);
 }
 
 void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
@@ -536,5 +558,5 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
         })();
     )";
 
-    browser->GetMainFrame()->ExecuteJavaScript(jsCode, "about:blank", 0);
+    browser->GetMainFrame()->ExecuteJavaScript(jsCode, browser->GetMainFrame()->GetURL(), 0);
 }

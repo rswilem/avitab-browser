@@ -360,7 +360,7 @@ void Browser::setFocus(bool focus) {
     handler->browserInstance->GetHost()->SetFocus(focus);
     if (!focus && handler->hasInputFocus) {
         std::string script = "document.activeElement?.blur();";
-        handler->browserInstance->GetMainFrame()->ExecuteJavaScript(script, "about:blank", 0);
+        handler->browserInstance->GetMainFrame()->ExecuteJavaScript(script, handler->browserInstance->GetMainFrame()->GetURL(), 0);
     }
 }
 
@@ -600,6 +600,9 @@ void Browser::updateGPSLocation() {
     float altitudeMeters = Dataref::getInstance()->get<float>("sim/flightmodel/position/y_agl");
     float magneticHeading = Dataref::getInstance()->get<float>("sim/flightmodel/position/mag_psi");
     
+    float windDirection = Dataref::getInstance()->get<float>("sim/weather/wind_direction_degt");
+    float windSpeed = Dataref::getInstance()->get<float>("sim/weather/wind_speed_kt");
+    
     std::stringstream stream;
     stream << "window.avitab_location = { ";
     stream << "coords: { ";
@@ -610,9 +613,13 @@ void Browser::updateGPSLocation() {
     stream << "altitudeAccuracy: 10, ";
     stream << "heading: " << std::fixed << std::setprecision(0) << magneticHeading << ", ";
     stream << "speed: " << std::fixed << std::setprecision(0) << speedMetersSecond << ", ";
+    stream << "}, ";
+    stream << "wind: { ";
+    stream << "direction: " << std::fixed << std::setprecision(0) << windDirection << ", ";
+    stream << "speedKts: " << std::fixed << std::setprecision(0) << windSpeed << ", ";
     stream <<  "}, timestamp: Date.now() }; for (let key in window.avitab_watchers) { window.avitab_watchers[key](window.avitab_location); }";
     
-    handler->browserInstance->GetMainFrame()->ExecuteJavaScript(stream.str(), "about:blank", 0);
+    handler->browserInstance->GetMainFrame()->ExecuteJavaScript(stream.str(), handler->browserInstance->GetMainFrame()->GetURL(), 0);
     lastGpsUpdateTime = XPLMGetElapsedTime();
 }
 
