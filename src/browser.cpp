@@ -157,12 +157,22 @@ void Browser::initialize() {
     currentUrl = AppState::getInstance()->config.homepage;
     
     Dataref::getInstance()->createDataref<std::string>("avitab_browser/url", &currentUrl, true, [this](std::string newUrl) {
-        if (!newUrl.starts_with("http")) {
+        if (!newUrl.starts_with("http") && !newUrl.starts_with("chrome://") && !newUrl.starts_with("data:")) {
             return false;
         }
         
         loadUrl(newUrl);
         return true;
+    });
+    
+    Dataref::getInstance()->createCommand("avitab_browser/refresh", "Refresh the current web page", [this](XPLMCommandPhase inPhase) {
+        if (inPhase != xplm_CommandBegin) {
+            return;
+        }
+        
+        if (handler && handler->browserInstance) {
+            handler->browserInstance->Reload();
+        }
     });
 }
 

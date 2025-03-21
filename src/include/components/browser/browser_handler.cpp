@@ -256,7 +256,7 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                     </select>
                 </div>
         
-                <div class="flex flex-col w-full">
+                <div class="flex flex-col w-full gap-4">
                     <div class="flex flex-col gap-2 text-xs" onclick="refreshUserAgent();">
                         <span>User-Agent (JS)</span>
                         <span id="user-agent">not_loaded</span>
