@@ -417,6 +417,11 @@ void Browser::key(unsigned char key, unsigned char virtualKey, XPLMKeyFlags flag
     if ((flags & xplm_ControlFlag) == xplm_ControlFlag) {
         keyEvent.modifiers |= EVENTFLAG_CONTROL_DOWN;
         //keyEvent.modifiers |= EVENTFLAG_COMMAND_DOWN;
+        
+        if (key == 'a') {
+            handler->browserInstance->GetMainFrame()->SelectAll();
+            return;
+        }
     }
     
     handler->browserInstance->GetHost()->SendKeyEvent(keyEvent);

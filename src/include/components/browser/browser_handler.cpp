@@ -502,6 +502,10 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             // Enter key to navigate
             addressBar.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
+                    if (!addressBar.value.startsWith('http')) {
+                        addressBar.value = "https://" + addressBar.value;
+                    }
+    
                     window.location.href = addressBar.value;
                 }
             });
@@ -514,7 +518,7 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
 
             // Clear input button
             const clearInputButton = document.createElement('button');
-            clearInputButton.innerHTML = '&#10005;';
+            clearInputButton.textContent = String.fromCharCode(10005);
             clearInputButton.style.cursor = 'pointer';
             clearInputButton.style.color = isDarkMode ? '#D2D2D2' : '#1A1A1A';
             clearInputButton.style.backgroundColor = 'transparent';
@@ -554,7 +558,13 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             document.body.insertBefore(toolbar, document.body.firstChild);
 
             // Add some spacing so the page content isn't hidden behind the toolbar
-            document.body.style.marginTop = '40px';
+            const elements = [document.body, $('ytd-masthead')];
+            for (const elem of elements) {
+                if (!elem) {
+                    continue;
+                }
+                elem.style.marginTop = '40px';
+            }
         })();
     )";
 
