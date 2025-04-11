@@ -498,8 +498,16 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             addressBar.style.backgroundColor = isDarkMode ? '#000000' : '#D2D2D2';
             addressBar.style.padding = '2px 8px';
             addressBar.style.borderRadius = '12px';
+    
+            const observer = new MutationObserver(() => {
+                addressBar.value = window.location.href;
+            });
+            observer.observe(document, { subtree: true, childList: true });
 
-            // Enter key to navigate
+            window.addEventListener("popstate", () => {
+                addressBar.value = window.location.href;
+            });
+
             addressBar.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     if (!addressBar.value.startsWith('http')) {
