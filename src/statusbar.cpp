@@ -13,6 +13,7 @@ Statusbar::Statusbar() {
     loading = false;
     activeTabTitle = "";
     activeTabButton = nullptr;
+    homeButton = nullptr;
     spinnerImage = nullptr;
 }
 
@@ -59,6 +60,15 @@ void Statusbar::initialize() {
     if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
         x = 0.3f;
     }
+    
+    if (AppState::getInstance()->aircraftVariant == VariantIXEG737) {
+        homeButton = new Button(Path::getInstance()->pluginDirectory + "/assets/icons/home.svg");
+        homeButton->setPosition(0.5f, 0.967f);
+        homeButton->setClickHandler([]() {
+            AppState::getInstance()->hideBrowser();
+            return true;
+        });
+    }
 }
 
 void Statusbar::destroy() {
@@ -71,6 +81,10 @@ void Statusbar::destroy() {
         button->destroy();
     }
     statusbarButtons.clear();
+    
+    if (homeButton) {
+        homeButton->destroy();
+    }
 }
 
 void Statusbar::update() {
@@ -116,6 +130,10 @@ void Statusbar::draw() {
         set_brightness(AppState::getInstance()->brightness * 0.2f);
         Drawing::DrawRoundedRect(x - activeTabButton->relativeWidth - 0.005f, y - 0.015f, x - 0.005f, y + 0.015f, 4.0f);
         Drawing::DrawText(activeTabTitle, x - 0.005f - activeTabButton->relativeWidth / 2.0f, y, 1.0f, {AppState::getInstance()->brightness + 0.1f, AppState::getInstance()->brightness + 0.1f, AppState::getInstance()->brightness + 0.1f});
+    }
+    
+    if (homeButton) {
+        homeButton->draw();
     }
 }
 

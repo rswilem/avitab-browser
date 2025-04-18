@@ -12,6 +12,7 @@ private:
     std::string activeTabTitle;
     Button *activeTabButton;
     Image *spinnerImage;
+    Button *homeButton;
     std::vector<Button *> statusbarButtons;
 public:
     Statusbar();

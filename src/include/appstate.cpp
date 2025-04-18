@@ -1,6 +1,7 @@
 #include "appstate.h"
 #include <XPLMUtilities.h>
 #include <XPLMProcessing.h>
+#include <XPLMGraphics.h>
 #include <fstream>
 #include "INIReader.h"
 #include "path.h"
@@ -113,6 +114,12 @@ bool AppState::initialize() {
         }
     });
     
+    if (aircraftVariant == VariantIXEG737) {
+        Dataref::getInstance()->monitorExistingDataref<int>("avitab/is_in_menu", [this](int isInMenu) {
+            Dataref::getInstance()->set<int>("avitab/panel_enabled", (shouldBrowserVisible || browserVisible) && !isInMenu ? 0 : 1);
+        });
+    }
+    
     pluginInitialized = true;
     return true;
 }
@@ -217,6 +224,13 @@ void AppState::update() {
         brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
         mainMenuButton->visible = AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu");
     }
+    else if (aircraftVariant == VariantIXEG737) {
+        hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("ixeg/733/misc/show_avitab");
+        canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
+        
+        brightness = fmin(1.0f, fmax(0.0f, Dataref::getInstance()->getCached<float>("avitab/brightness")));
+        mainMenuButton->visible = AppState::getInstance()->hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu");
+    }
     else {
         hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
@@ -260,6 +274,31 @@ void AppState::update() {
 void AppState::draw() {
     if (!pluginInitialized || !hasPower) {
         return;
+    }
+    
+    if (aircraftVariant == VariantIXEG737 && browserVisible) {
+        XPLMSetGraphicsState(
+                             0, // No fog, equivalent to glDisable(GL_FOG);
+                             0, // One texture, equivalent to glEnable(GL_TEXTURE_2D);
+                             0, // No lighting, equivalent to glDisable(GL_LIGHT0);
+                             0, // No alpha testing, e.g glDisable(GL_ALPHA_TEST);
+                             1, // Use alpha blending, e.g. glEnable(GL_BLEND);
+                             0, // No depth read, e.g. glDisable(GL_DEPTH_TEST);
+                             0 // No depth write, e.g. glDepthMask(GL_FALSE);
+        );
+
+        int x1 = tabletDimensions.x;
+        int y1 = tabletDimensions.y;
+        int x2 = x1 + tabletDimensions.width;
+        int y2 = y1 + tabletDimensions.height;
+        
+        glColor3f(0.0f, 0.0f, 0.0f);
+        glBegin(GL_QUADS);
+        glVertex2f(x1, y1);
+        glVertex2f(x1, y2);
+        glVertex2f(x2, y2);
+        glVertex2f(x2, y1);
+        glEnd();
     }
     
     set_brightness(brightness);
