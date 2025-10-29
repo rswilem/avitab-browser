@@ -419,7 +419,21 @@ void Browser::key(unsigned char key, unsigned char virtualKey, XPLMKeyFlags flag
         //keyEvent.modifiers |= EVENTFLAG_COMMAND_DOWN;
         
         if (key == 'a') {
-            handler->browserInstance->GetMainFrame()->SelectAll();
+            if (keyEvent.type == KEYEVENT_KEYDOWN) {
+                handler->browserInstance->GetMainFrame()->SelectAll();
+            }
+            return;
+        }
+        else if (key == 'c') {
+            if (keyEvent.type == KEYEVENT_KEYDOWN) {
+                handler->browserInstance->GetMainFrame()->Copy();
+            }
+            return;
+        }
+        else if (key == 'v') {
+            if (keyEvent.type == KEYEVENT_KEYDOWN) {
+                handler->browserInstance->GetMainFrame()->Paste();
+            }
             return;
         }
     }

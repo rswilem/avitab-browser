@@ -12,7 +12,6 @@
 		F61F8B1E2D0456D700E63C3F /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F66F91662D0332F600F84283 /* main.cpp */; };
 		F61F8B2F2D059ED500E63C3F /* button.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F61F8B262D059ED500E63C3F /* button.cpp */; };
 		F61F8B312D059ED500E63C3F /* image.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F61F8B282D059ED500E63C3F /* image.cpp */; };
-		F621307A2D11E74E0001E77B /* avitab-browser.xpl in CopyFiles */ = {isa = PBXBuildFile; fileRef = D607B19909A556E400699BC3 /* avitab-browser.xpl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		F62DB14C2D26A5290048FCC6 /* libcef_dll_wrapper.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F62DB14B2D26A5180048FCC6 /* libcef_dll_wrapper.a */; };
 		F63C14262D12C63E00932475 /* INIReader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F63C14222D12C63E00932475 /* INIReader.cpp */; };
 		F63C14272D12C63E00932475 /* ini.c in Sources */ = {isa = PBXBuildFile; fileRef = F63C14202D12C63E00932475 /* ini.c */; };
@@ -57,19 +56,6 @@
 		F6D247CB2D2FC4DB00C55144 /* cursor_linux.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6D247C02D2FC4DB00C55144 /* cursor_linux.cpp */; };
 		F6EB776E2D22D687000B96F3 /* notification.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6EB77692D21FFF2000B96F3 /* notification.cpp */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		F6C27DCD2CFBC9F80031DB0B /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "/Users/ramon/X-Plane 12/Resources/plugins/avitab-browser/mac_x64";
-			dstSubfolderSpec = 0;
-			files = (
-				F621307A2D11E74E0001E77B /* avitab-browser.xpl in CopyFiles */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		D607B19909A556E400699BC3 /* avitab-browser.xpl */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "avitab-browser.xpl"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -316,7 +302,6 @@
 				D607B19609A556E400699BC3 /* Sources */,
 				D607B19709A556E400699BC3 /* Frameworks */,
 				F6AF9EBA2D06F05600530297 /* Copy assets if needed */,
-				F6C27DCD2CFBC9F80031DB0B /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -389,7 +374,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cleaned_product_name=\"${PRODUCT_NAME//-mac/}\"\ncleaned_product_name=\"${cleaned_product_name//-win/}\"\ncleaned_product_name=\"${cleaned_product_name//-lin/}\"\nfolder=\"$HOME/X-Plane 12/Resources/plugins/${cleaned_product_name}\"\n\n# copy assets/\nif [ ! -d \"$folder/assets\" ]; then\n    mkdir \"$folder/assets\"\nfi\nrsync -a ./assets/ \"$folder/assets/\"\n\n";
+			shellScript = "cleaned_product_name=\"${PRODUCT_NAME//-mac/}\"\ncleaned_product_name=\"${cleaned_product_name//-win/}\"\ncleaned_product_name=\"${cleaned_product_name//-lin/}\"\nfolder=\"$HOME/X-Plane 12/Resources/plugins/${cleaned_product_name}\"\n\n[ ! -d \"$folder/assets\" ] && mkdir -p \"$folder/assets\"\n\n[ -d \"./assets\" ] && rsync -a --exclude=\".gitkeep\" ./assets/ \"$folder/assets/\" || true\n\ncase \"$OSTYPE\" in\n  darwin*) os_folder=\"mac_x64\" ;;\n  linux*) os_folder=\"lin_x64\" ;;\n  msys*) os_folder=\"win_x64\" ;;\n  *) os_folder=\"unknown\" ;;\nesac\n\n[ \"$os_folder\" != \"unknown\" ] && mkdir -p \"$folder/$os_folder\" && cp \"$BUILT_PRODUCTS_DIR/$EXECUTABLE_PATH\" \"$folder/$os_folder/\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

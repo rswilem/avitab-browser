@@ -347,14 +347,22 @@ cef_return_value_t BrowserHandler::OnBeforeResourceLoad(CefRefPtr<CefBrowser> br
         return RV_CONTINUE;
     }
 
-    //std::string userAgent = it->second.ToString();
-    // ^userAgent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) X-Plane Safari/537.36
     headers.erase("User-Agent");
     headers.insert(std::make_pair("User-Agent", AppState::getInstance()->config.user_agent));
     request->SetHeaderMap(headers);
-    
     return RV_CONTINUE;
 }
+
+#if DEBUG
+bool BrowserHandler::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) {
+    if (frame->IsMain()) {
+        std::string url = request->GetURL();
+        debug("URL: %s\n", url.c_str());
+    }
+    
+    return false;
+}
+#endif
 
 void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) {
     if (!frame->IsMain()) {
@@ -366,63 +374,54 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
 }
 
 void BrowserHandler::overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser) {
-    const std::string javascript = R"(
+    return;
+    std::string javascript = R"(
         function setUserAgent(window, userAgent) {
-            // Works on Firefox, Chrome, Opera and IE9+
-            if (navigator.__defineGetter__) {
-                navigator.__defineGetter__('userAgent', function () {
-                    return userAgent;
-                });
-            } else if (Object.defineProperty) {
-                Object.defineProperty(navigator, 'userAgent', {
-                    get: function () {
+            try {
+                var userAgentProp = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+                if (userAgentProp && userAgentProp.configurable) {
+                    Object.defineProperty(navigator, 'userAgent', {
+                        get: function () {
+                            return userAgent;
+                        },
+                        configurable: true
+                    });
+                } else if (navigator.__defineGetter__) {
+                    navigator.__defineGetter__('userAgent', function () {
                         return userAgent;
-                    }
-                });
-            }
-            // Works on Safari
-            if (window.navigator.userAgent !== userAgent) {
-                var userAgentProp = {
-                    get: function () {
-                        return userAgent;
-                    }
-                };
-                try {
-                    Object.defineProperty(window.navigator, 'userAgent', userAgentProp);
-                } catch (e) {
-                    window.navigator = Object.create(navigator, {
-                        userAgent: userAgentProp
                     });
                 }
+            } catch (e) {
+                // Ignore
             }
         }
-    
+
         window.avitab_watchers = (window.avitab_watchers || {});
         navigator.permissions.query = (options) => {
           return Promise.resolve({
             state: "granted",
           });
         };
-    
+
         navigator.geolocation.watchPosition = (success, error, options) => {
           window.avitab_watchers = (window.avitab_watchers || {});
           const id = Math.round(Date.now() / 1000);
           window.avitab_watchers[id] = success;
           return id;
         };
-    
+
         navigator.geolocation.clearWatch = (id) => {
           if (!window.avitab_watchers) { return; }
           delete window.avitab_watchers[id];
         };
-    
+
         navigator.geolocation.getCurrentPosition = (success, error, options) => {
           const wid = navigator.geolocation.watchPosition(()=>{
             success(window.avitab_location || null);
             navigator.geolocation.clearWatch(wid);
           }, error, options);
         };
-        
+
         setUserAgent(window, ")" + AppState::getInstance()->config.user_agent + R"(");
         window.dispatchEvent(new Event("load"));
     )";
