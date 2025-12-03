@@ -63,10 +63,10 @@ fi
 for platform in $PLATFORMS; do
     echo "Building $platform..."
     if [ $platform = "lin" ]; then
-        # Prerequisite: Create a container based on gcc:latest with cmake and libgl1-mesa-dev, for x86_64 architecture
-        docker run --rm -v $(pwd):/src -w /src gcc-cmake-x86:latest bash -c "\
-        cmake -DCMAKE_CXX_FLAGS="-march=x86-64" -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DSDK_VERSION=$SDK_VERSION -Bbuild/$platform -H. && \
-        make -C build/$platform"
+        docker build -t gcc-cmake -f ./docker/Dockerfile.linux . && \
+        docker run --user $(id -u):$(id -g) --rm -v $(pwd):/src -w /src gcc-cmake:latest bash -c "\
+        cmake -DCMAKE_CXX_FLAGS='-march=x86-64' -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DSDK_VERSION=$SDK_VERSION -Bbuild/$platform -H. && \
+        make -C build/$platform -j\$(nproc)"
     else
         cmake -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DSDK_VERSION=$SDK_VERSION -Bbuild/$platform -H.
         make -C build/$platform
