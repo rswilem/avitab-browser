@@ -3,9 +3,15 @@
 // can be found in the LICENSE file.
 
 #include "browser_handler.h"
-#include <include/cef_base.h>
+
+#include "appstate.h"
+#include "config.h"
+#include "path.h"
+
+#include <cmath>
 #include <include/base/cef_callback.h>
 #include <include/cef_app.h>
+#include <include/cef_base.h>
 #include <include/cef_parser.h>
 #include <include/views/cef_browser_view.h>
 #include <include/views/cef_window.h>
@@ -13,17 +19,13 @@
 #include <include/wrapper/cef_helpers.h>
 #include <sstream>
 #include <string>
-#include <cmath>
+#include <XPLMGraphics.h>
 #include <XPLMProcessing.h>
 #include <XPLMUtilities.h>
-#include <XPLMGraphics.h>
-#include "config.h"
-#include "appstate.h"
-#include "path.h"
 
-BrowserHandler::BrowserHandler(int aTextureId, std::string* aCurrentUrl, unsigned short aWidth, unsigned short aHeight) {
+BrowserHandler::BrowserHandler(int aTextureId, std::string *aCurrentUrl, unsigned short aWidth, unsigned short aHeight) {
     textureId = aTextureId;
-    popupRect = {0,0,0,0};
+    popupRect = {0, 0, 0, 0};
     popupShown = false;
     currentUrl = aCurrentUrl;
     windowWidth = aWidth;
@@ -53,7 +55,7 @@ void BrowserHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
 
 bool BrowserHandler::DoClose(CefRefPtr<CefBrowser> browser) {
     textureId = 0;
-    
+
     if (AppState::getInstance()->statusbar) {
         AppState::getInstance()->statusbar->setActiveTab("");
     }
@@ -63,28 +65,26 @@ bool BrowserHandler::DoClose(CefRefPtr<CefBrowser> browser) {
 void BrowserHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     textureId = 0;
     browserInstance = nullptr;
-    
+
     if (AppState::getInstance()->statusbar) {
         AppState::getInstance()->statusbar->setActiveTab("");
     }
 }
 
-
 bool BrowserHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, const CefString &target_url, const CefString &target_frame_name, CefLifeSpanHandler::WindowOpenDisposition target_disposition, bool user_gesture, const CefPopupFeatures &popupFeatures, CefWindowInfo &windowInfo, CefRefPtr<CefClient> &client, CefBrowserSettings &settings, CefRefPtr<CefDictionaryValue> &extra_info, bool *no_javascript_access) {
     if (user_gesture && !target_url.empty()) {
         browser->GetMainFrame()->LoadURL(target_url);
     }
-    
+
     return true;
 }
 
 void BrowserHandler::OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) {
     popupShown = show;
-    
+
     if (popupShown) {
         browser->GetHost()->Invalidate(PET_POPUP);
-    }
-    else {
+    } else {
         needsFullDraw = true;
     }
 }
@@ -105,28 +105,26 @@ void BrowserHandler::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType typ
     if (!textureId) {
         return;
     }
-    
+
     XPLMBindTexture2d(textureId, 0);
     constexpr uint32_t bytes_per_pixel = 4;
-    
-    for (const auto& rect : dirtyRects) {
-        const uint8_t* rectBuffer = static_cast<const uint8_t*>(buffer) + rect.y * width * bytes_per_pixel + rect.x * bytes_per_pixel;
-        
+
+    for (const auto &rect : dirtyRects) {
+        const uint8_t *rectBuffer = static_cast<const uint8_t *>(buffer) + rect.y * width * bytes_per_pixel + rect.x * bytes_per_pixel;
+
         glPixelStorei(GL_UNPACK_ROW_LENGTH, width);
-        
-        if  (needsFullDraw) {
+
+        if (needsFullDraw) {
             glTexSubImage2D(
-                            GL_TEXTURE_2D,
-                            0,
-                            0, 0,
-                            width, height,
-                            GL_BGRA,
-                            GL_UNSIGNED_BYTE,
-                            buffer
-                            );
+                GL_TEXTURE_2D,
+                0,
+                0, 0,
+                width, height,
+                GL_BGRA,
+                GL_UNSIGNED_BYTE,
+                buffer);
             needsFullDraw = false;
-        }
-        else if (popupShown) {
+        } else if (popupShown) {
             if (type == PET_POPUP) {
                 glTexSubImage2D(
                     GL_TEXTURE_2D,
@@ -135,11 +133,9 @@ void BrowserHandler::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType typ
                     rect.width, rect.height,
                     GL_BGRA,
                     GL_UNSIGNED_BYTE,
-                    rectBuffer
-                );
+                    rectBuffer);
             }
-        }
-        else {
+        } else {
             glTexSubImage2D(
                 GL_TEXTURE_2D,
                 0,
@@ -147,10 +143,9 @@ void BrowserHandler::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType typ
                 rect.width, rect.height,
                 GL_BGRA,
                 GL_UNSIGNED_BYTE,
-                rectBuffer
-            );
+                rectBuffer);
         }
-        
+
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     }
 }
@@ -160,16 +155,16 @@ bool BrowserHandler::OnCursorChange(CefRefPtr<CefBrowser> browser, CefCursorHand
         case CT_HAND:
             cursorState = CursorHand;
             break;
-            
+
         case CT_IBEAM:
         case CT_VERTICALTEXT:
             cursorState = CursorText;
             break;
-            
+
         default:
             cursorState = CursorDefault;
     }
-    
+
     return false;
 }
 
@@ -179,19 +174,19 @@ void BrowserHandler::OnVirtualKeyboardRequested(CefRefPtr<CefBrowser> browser, T
 
 void BrowserHandler::OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool isLoading, bool canGoBack, bool canGoForward) {
     AppState::getInstance()->statusbar->loading = isLoading;
-    
+
     if (!isLoading) {
         injectAddressBar(browser);
         *currentUrl = browser->GetMainFrame()->GetURL().ToString();
     }
 }
 
-void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode errorCode, const CefString& errorText, const CefString& failedUrl) {
+void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode errorCode, const CefString &errorText, const CefString &failedUrl) {
     CEF_REQUIRE_UI_THREAD();
     if (errorCode == ERR_ABORTED) {
         return;
     }
-    
+
 #if DEBUG
     if (failedUrl.ToString() == "http://__debug__/") {
         const std::string htmlString = R"(
@@ -200,7 +195,8 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-            <title>)" + std::string(FRIENDLY_NAME) + R"(</title>
+            <title>)" + std::string(FRIENDLY_NAME) +
+                                       R"(</title>
             <script>
                 function refreshUserAgent() {
                     document.getElementById('user-agent').textContent = navigator.userAgent;
@@ -225,7 +221,8 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
         </head>
         <body class="flex flex-col items-center justify-start w-full">
             <div class="flex flex-col items-center gap-4 max-w-3xl">
-                <h1 class="text-3xl font-bold underline">)" + std::string(FRIENDLY_NAME) + R"(</h1>
+                <h1 class="text-3xl font-bold underline">)" +
+                                       std::string(FRIENDLY_NAME) + R"(</h1>
                 <div>
                     <input id="alert-text" placeholder="Type here" />
                     <button onclick="javascript:alert(document.getElementById('alert-text').value || 'Test');">Show alert</button>
@@ -286,26 +283,26 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
 
 bool BrowserHandler::OnJSDialog(CefRefPtr<CefBrowser> browser, const CefString &origin_url, JSDialogType dialog_type, const CefString &message_text, const CefString &default_prompt_text, CefRefPtr<CefJSDialogCallback> callback, bool &suppress_message) {
     suppress_message = true;
-    
+
     AppState::getInstance()->showNotification(new Notification("Alert", message_text.ToString()));
     return false;
 }
 
 bool BrowserHandler::OnFileDialog(CefRefPtr<CefBrowser> browser, FileDialogMode mode, const CefString &title, const CefString &default_file_path, const std::vector<CefString> &accept_filters, CefRefPtr<CefFileDialogCallback> callback) {
-    //debug("file dialog: %i :: %s", mode, title.ToString().c_str());
+    // debug("file dialog: %i :: %s", mode, title.ToString().c_str());
     return false;
 }
 
 bool BrowserHandler::OnShowPermissionPrompt(CefRefPtr<CefBrowser> browser, uint64_t prompt_id, const CefString &requesting_origin, uint32_t requested_permissions, CefRefPtr<CefPermissionPromptCallback> callback) {
     if (requested_permissions & CEF_PERMISSION_TYPE_GEOLOCATION) {
-//        callback->Continue(CEF_PERMISSION_RESULT_DENY);
-//        return true;
+        //        callback->Continue(CEF_PERMISSION_RESULT_DENY);
+        //        return true;
         return false;
     }
-    
+
     debug("Denied browser permissions request from %s. Requested flags=%i\n", requesting_origin.ToString().c_str(), requested_permissions);
     callback->Continue(CEF_PERMISSION_RESULT_DENY);
-    
+
     return true;
 }
 
@@ -318,7 +315,7 @@ void BrowserHandler::OnDocumentAvailableInMainFrame(CefRefPtr<CefBrowser> browse
     if (!browser->GetMainFrame()) {
         return;
     }
-    
+
     overrideGeolocationAndNavigator(browser);
 }
 
@@ -328,7 +325,7 @@ void BrowserHandler::OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<C
         callback->Continue(filename, false);
         return;
     }
-    
+
     // Cancel all other downloads (by default).
     AppState::getInstance()->showNotification(new Notification("Download failed", "Could not download the requested file."));
 }
@@ -359,7 +356,7 @@ bool BrowserHandler::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<Cef
         std::string url = request->GetURL();
         debug("URL: %s\n", url.c_str());
     }
-    
+
     return false;
 }
 #endif
@@ -368,64 +365,60 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
     if (!frame->IsMain()) {
         return;
     }
-    
+
     overrideGeolocationAndNavigator(browser);
     injectAddressBar(browser);
 }
 
 void BrowserHandler::overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser) {
-    return;
-    std::string javascript = R"(
-        function setUserAgent(window, userAgent) {
-            try {
-                var userAgentProp = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
-                if (userAgentProp && userAgentProp.configurable) {
-                    Object.defineProperty(navigator, 'userAgent', {
-                        get: function () {
-                            return userAgent;
-                        },
-                        configurable: true
-                    });
-                } else if (navigator.__defineGetter__) {
-                    navigator.__defineGetter__('userAgent', function () {
-                        return userAgent;
-                    });
-                }
-            } catch (e) {
-                // Ignore
-            }
-        }
+    std::string userAgent = AppState::getInstance()->config.user_agent;
 
-        window.avitab_watchers = (window.avitab_watchers || {});
-        navigator.permissions.query = (options) => {
-          return Promise.resolve({
-            state: "granted",
-          });
-        };
+    std::string javascript =
+        "function setUserAgent(window, userAgent) {"
+        "    try {"
+        "        var userAgentProp = Object.getOwnPropertyDescriptor(navigator, 'userAgent');"
+        "        if (userAgentProp && userAgentProp.configurable) {"
+        "            Object.defineProperty(navigator, 'userAgent', {"
+        "                get: function () { return userAgent; },"
+        "                configurable: true"
+        "            });"
+        "        } else if (navigator.__defineGetter__) {"
+        "            navigator.__defineGetter__('userAgent', function () {"
+        "                return userAgent;"
+        "            });"
+        "        }"
+        "    } catch (e) {}"
+        "}"
+        "window.avitab_watchers = (window.avitab_watchers || {});"
+        "Object.defineProperty(navigator, 'onLine', {"
+        "    get: function() { return true; },"
+        "    configurable: true"
+        "});"
+        "navigator.permissions.query = (options) => {"
+        "    return Promise.resolve({ state: 'granted' });"
+        "};"
+        "navigator.geolocation.watchPosition = (success, error, options) => {"
+        "    window.avitab_watchers = (window.avitab_watchers || {});"
+        "    const id = Math.round(Date.now() / 1000);"
+        "    window.avitab_watchers[id] = success;"
+        "    if (window.avitab_location) { success(window.avitab_location); }"
+        "    return id;"
+        "};"
+        "navigator.geolocation.clearWatch = (id) => {"
+        "    if (!window.avitab_watchers) { return; }"
+        "    delete window.avitab_watchers[id];"
+        "};"
+        "navigator.geolocation.getCurrentPosition = (success, error, options) => {"
+        "    if (window.avitab_location) {"
+        "        success(window.avitab_location);"
+        "    } else {"
+        "        const wid = navigator.geolocation.watchPosition(success, error, options);"
+        "    }"
+        "};"
+        "setUserAgent(window, \"" +
+        userAgent + "\");"
+                    "window.dispatchEvent(new Event('load'));";
 
-        navigator.geolocation.watchPosition = (success, error, options) => {
-          window.avitab_watchers = (window.avitab_watchers || {});
-          const id = Math.round(Date.now() / 1000);
-          window.avitab_watchers[id] = success;
-          return id;
-        };
-
-        navigator.geolocation.clearWatch = (id) => {
-          if (!window.avitab_watchers) { return; }
-          delete window.avitab_watchers[id];
-        };
-
-        navigator.geolocation.getCurrentPosition = (success, error, options) => {
-          const wid = navigator.geolocation.watchPosition(()=>{
-            success(window.avitab_location || null);
-            navigator.geolocation.clearWatch(wid);
-          }, error, options);
-        };
-
-        setUserAgent(window, ")" + AppState::getInstance()->config.user_agent + R"(");
-        window.dispatchEvent(new Event("load"));
-    )";
-    
     browser->GetMainFrame()->ExecuteJavaScript(javascript.c_str(), browser->GetMainFrame()->GetURL(), 0);
 }
 
@@ -433,12 +426,14 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
     if (AppState::getInstance()->config.hide_addressbar) {
         return;
     }
-    
+
     const std::string jsCode = R"(
         (function() {
             if (document.getElementById('cefToolbar')) {
-                document.getElementById('cefBack').style.filter = ')" + std::string(browser->CanGoBack() ? "" : "brightness(1.5) saturate(0)") + R"(';
-                document.getElementById('cefForward').style.filter = ')" + std::string(browser->CanGoForward() ? "" : "brightness(1.5) saturate(0)") + R"(';
+                document.getElementById('cefBack').style.filter = ')" +
+                               std::string(browser->CanGoBack() ? "" : "brightness(1.5) saturate(0)") + R"(';
+                document.getElementById('cefForward').style.filter = ')" +
+                               std::string(browser->CanGoForward() ? "" : "brightness(1.5) saturate(0)") + R"(';
                 return;
             }
             
