@@ -30,8 +30,6 @@
 		F64CFE6A2D2C31E8009BE82B /* appstate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6AF9ECB2D078ED400530297 /* appstate.cpp */; };
 		F64CFE6B2D2C31E8009BE82B /* dataref.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6AF9EBC2D06F84900530297 /* dataref.cpp */; };
 		F64CFE6C2D2C31E8009BE82B /* browser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F66F916C2D0333A400F84283 /* browser.cpp */; };
-		F64CFE6E2D2C31E8009BE82B /* XPWidgets.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F674E6F32D2ACDC600CCE11F /* XPWidgets.framework */; };
-		F64CFE6F2D2C31E8009BE82B /* XPLM.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F674E6F42D2ACDC600CCE11F /* XPLM.framework */; };
 		F64CFE702D2C31E8009BE82B /* libcef_dll_wrapper.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F62DB14B2D26A5180048FCC6 /* libcef_dll_wrapper.a */; };
 		F64CFE712D2C31E8009BE82B /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F6A0452C2D25E33700A0FFA3 /* libcurl.tbd */; platformFilters = (maccatalyst, macos, ); };
 		F64CFE722D2C31E8009BE82B /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F691E46C2D0338E90000666C /* CoreFoundation.framework */; };
@@ -39,8 +37,6 @@
 		F64CFE742D2C31E8009BE82B /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6AF9EC52D078DB000530297 /* Cocoa.framework */; };
 		F64EE9C22D24130F000E68D2 /* drawing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F64EE9C02D24130F000E68D2 /* drawing.cpp */; };
 		F6602C0F2D0C8B2B00204B65 /* browser_handler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6602C0B2D0C8B2B00204B65 /* browser_handler.cpp */; };
-		F674E6F52D2ACDC600CCE11F /* XPWidgets.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F674E6F32D2ACDC600CCE11F /* XPWidgets.framework */; };
-		F674E6F72D2ACDC600CCE11F /* XPLM.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F674E6F42D2ACDC600CCE11F /* XPLM.framework */; };
 		F691E46D2D0338E90000666C /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F691E46C2D0338E90000666C /* CoreFoundation.framework */; };
 		F691E46F2D0338F10000666C /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F691E46E2D0338F10000666C /* OpenGL.framework */; };
 		F6A0452D2D25E34E00A0FFA3 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F6A0452C2D25E33700A0FFA3 /* libcurl.tbd */; platformFilters = (maccatalyst, macos, ); };
@@ -48,6 +44,10 @@
 		F6AF9EC12D06F84900530297 /* dataref.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6AF9EBC2D06F84900530297 /* dataref.cpp */; };
 		F6AF9EC62D078DB000530297 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6AF9EC52D078DB000530297 /* Cocoa.framework */; };
 		F6AF9ECC2D078ED400530297 /* appstate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6AF9ECB2D078ED400530297 /* appstate.cpp */; };
+		F6C242F92F17AA0100B42F05 /* XPLM.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C242F72F17AA0100B42F05 /* XPLM.framework */; };
+		F6C242FA2F17AA0100B42F05 /* XPWidgets.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C242F82F17AA0100B42F05 /* XPWidgets.framework */; };
+		F6C242FB2F17AA0100B42F05 /* XPLM.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C242F72F17AA0100B42F05 /* XPLM.framework */; };
+		F6C242FC2F17AA0100B42F05 /* XPWidgets.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C242F82F17AA0100B42F05 /* XPWidgets.framework */; };
 		F6D247C62D2FC4DB00C55144 /* cursor_mac.mm in Sources */ = {isa = PBXBuildFile; fileRef = F6D247C22D2FC4DB00C55144 /* cursor_mac.mm */; };
 		F6D247C72D2FC4DB00C55144 /* cursor_win.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6D247C42D2FC4DB00C55144 /* cursor_win.cpp */; };
 		F6D247C82D2FC4DB00C55144 /* cursor_linux.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6D247C02D2FC4DB00C55144 /* cursor_linux.cpp */; };
@@ -85,8 +85,6 @@
 		F66F91662D0332F600F84283 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		F66F916B2D0333A400F84283 /* browser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = browser.h; sourceTree = "<group>"; };
 		F66F916C2D0333A400F84283 /* browser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = browser.cpp; sourceTree = "<group>"; wrapsLines = 1; };
-		F674E6F32D2ACDC600CCE11F /* XPWidgets.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XPWidgets.framework; path = SDK_410/Libraries/Mac/XPWidgets.framework; sourceTree = "<group>"; };
-		F674E6F42D2ACDC600CCE11F /* XPLM.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XPLM.framework; path = SDK_410/Libraries/Mac/XPLM.framework; sourceTree = "<group>"; };
 		F691E46C2D0338E90000666C /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
 		F691E46E2D0338F10000666C /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		F6A0452C2D25E33700A0FFA3 /* libcurl.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libcurl.tbd; path = usr/lib/libcurl.tbd; sourceTree = SDKROOT; };
@@ -97,6 +95,8 @@
 		F6AF9EC52D078DB000530297 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		F6AF9ECA2D078ED400530297 /* appstate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = appstate.h; sourceTree = "<group>"; };
 		F6AF9ECB2D078ED400530297 /* appstate.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = appstate.cpp; sourceTree = "<group>"; };
+		F6C242F72F17AA0100B42F05 /* XPLM.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XPLM.framework; path = SDK/Libraries/Mac/XPLM.framework; sourceTree = "<group>"; };
+		F6C242F82F17AA0100B42F05 /* XPWidgets.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XPWidgets.framework; path = SDK/Libraries/Mac/XPWidgets.framework; sourceTree = "<group>"; };
 		F6D247C02D2FC4DB00C55144 /* cursor_linux.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cursor_linux.cpp; sourceTree = "<group>"; };
 		F6D247C22D2FC4DB00C55144 /* cursor_mac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = cursor_mac.mm; sourceTree = "<group>"; };
 		F6D247C42D2FC4DB00C55144 /* cursor_win.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = cursor_win.cpp; sourceTree = "<group>"; };
@@ -110,11 +110,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F674E6F52D2ACDC600CCE11F /* XPWidgets.framework in Frameworks */,
-				F674E6F72D2ACDC600CCE11F /* XPLM.framework in Frameworks */,
 				F62DB14C2D26A5290048FCC6 /* libcef_dll_wrapper.a in Frameworks */,
 				F6A0452D2D25E34E00A0FFA3 /* libcurl.tbd in Frameworks */,
 				F691E46D2D0338E90000666C /* CoreFoundation.framework in Frameworks */,
+				F6C242FB2F17AA0100B42F05 /* XPLM.framework in Frameworks */,
+				F6C242FC2F17AA0100B42F05 /* XPWidgets.framework in Frameworks */,
 				F691E46F2D0338F10000666C /* OpenGL.framework in Frameworks */,
 				F6AF9EC62D078DB000530297 /* Cocoa.framework in Frameworks */,
 			);
@@ -124,11 +124,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F64CFE6E2D2C31E8009BE82B /* XPWidgets.framework in Frameworks */,
-				F64CFE6F2D2C31E8009BE82B /* XPLM.framework in Frameworks */,
 				F64CFE702D2C31E8009BE82B /* libcef_dll_wrapper.a in Frameworks */,
 				F64CFE712D2C31E8009BE82B /* libcurl.tbd in Frameworks */,
 				F64CFE722D2C31E8009BE82B /* CoreFoundation.framework in Frameworks */,
+				F6C242F92F17AA0100B42F05 /* XPLM.framework in Frameworks */,
+				F6C242FA2F17AA0100B42F05 /* XPWidgets.framework in Frameworks */,
 				F64CFE732D2C31E8009BE82B /* OpenGL.framework in Frameworks */,
 				F64CFE742D2C31E8009BE82B /* Cocoa.framework in Frameworks */,
 			);
@@ -256,9 +256,9 @@
 		F691E46B2D0338E90000666C /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				F674E6F42D2ACDC600CCE11F /* XPLM.framework */,
-				F674E6F32D2ACDC600CCE11F /* XPWidgets.framework */,
 				F62DB14B2D26A5180048FCC6 /* libcef_dll_wrapper.a */,
+				F6C242F72F17AA0100B42F05 /* XPLM.framework */,
+				F6C242F82F17AA0100B42F05 /* XPWidgets.framework */,
 				F6A0452C2D25E33700A0FFA3 /* libcurl.tbd */,
 				F6AF9EC52D078DB000530297 /* Cocoa.framework */,
 				F691E46E2D0338F10000666C /* OpenGL.framework */,
@@ -475,6 +475,8 @@
 					"XPLM303=1",
 					"XPLM400=1",
 					"XPLM410=1",
+					"XPLM411=1",
+					"DEBUG=1",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				GCC_VERSION = "";
@@ -553,6 +555,7 @@
 					"XPLM303=1",
 					"XPLM400=1",
 					"XPLM410=1",
+					"XPLM411=1",
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				GCC_VERSION = "";
@@ -596,24 +599,14 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/Libraries/Mac",
-					"$(PROJECT_DIR)/SDK_410/Libraries/Mac",
 					"$(PROJECT_DIR)/lib/mac_x64/cef",
 					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/SDK/Libraries/Mac",
 				);
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"APL=1",
-					"IBM=0",
-					"LIN=0",
-					"XPLM200=1",
-					"XPLM210=1",
-					"XPLM300=1",
-					"XPLM301=1",
-					"XPLM302=1",
-					"XPLM303=1",
-					"XPLM400=1",
-					"XPLM410=1",
-					"DEBUG=1",
+					"$(inherited)",
+					"XPLANE_VERSION=12",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/CHeaders/Widgets",
@@ -646,7 +639,7 @@
 				);
 				SUPPORTED_PLATFORMS = "xrsimulator xros watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
 				SUPPORTS_MACCATALYST = YES;
-				XPSDK_ROOT = SDK_410;
+				XPSDK_ROOT = SDK;
 			};
 			name = Debug;
 		};
@@ -661,22 +654,13 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/Libraries/Mac",
-					"$(PROJECT_DIR)/SDK_410/Libraries/Mac",
 					"$(PROJECT_DIR)/lib/mac_x64/cef",
 					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/SDK/Libraries/Mac",
 				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"APL=1",
-					"IBM=0",
-					"LIN=0",
-					"XPLM200=1",
-					"XPLM210=1",
-					"XPLM300=1",
-					"XPLM301=1",
-					"XPLM302=1",
-					"XPLM303=1",
-					"XPLM400=1",
-					"XPLM410=1",
+					"$(inherited)",
+					"XPLANE_VERSION=12",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/CHeaders/Widgets",
@@ -709,7 +693,7 @@
 				);
 				SUPPORTED_PLATFORMS = "xrsimulator xros watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
 				SUPPORTS_MACCATALYST = YES;
-				XPSDK_ROOT = SDK_410;
+				XPSDK_ROOT = SDK;
 			};
 			name = Release;
 		};
@@ -721,22 +705,14 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/Libraries/Mac",
-					"$(PROJECT_DIR)/SDK_410/Libraries/Mac",
 					"$(PROJECT_DIR)/lib/mac_x64/cef",
 					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/SDK/Libraries/Mac",
 				);
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"APL=1",
-					"IBM=0",
-					"LIN=0",
-					"XPLM200=1",
-					"XPLM210=1",
-					"XPLM300=1",
-					"XPLM301=1",
-					"XPLM302=1",
-					"XPLM303=1",
-					"DEBUG=1",
+					"$(inherited)",
+					"XPLANE_VERSION=11",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/CHeaders/Widgets",
@@ -770,7 +746,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "xrsimulator xros watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
 				SUPPORTS_MACCATALYST = YES;
-				XPSDK_ROOT = SDK_301;
+				XPSDK_ROOT = SDK;
 			};
 			name = Debug;
 		};
@@ -782,20 +758,13 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/Libraries/Mac",
-					"$(PROJECT_DIR)/SDK_410/Libraries/Mac",
 					"$(PROJECT_DIR)/lib/mac_x64/cef",
 					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/SDK/Libraries/Mac",
 				);
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"APL=1",
-					"IBM=0",
-					"LIN=0",
-					"XPLM200=1",
-					"XPLM210=1",
-					"XPLM300=1",
-					"XPLM301=1",
-					"XPLM302=1",
-					"XPLM303=1",
+					"$(inherited)",
+					"XPLANE_VERSION=11",
 				);
 				HEADER_SEARCH_PATHS = (
 					"$(XPSDK_ROOT)/CHeaders/Widgets",
@@ -829,7 +798,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "xrsimulator xros watchsimulator watchos macosx iphonesimulator iphoneos driverkit appletvsimulator appletvos";
 				SUPPORTS_MACCATALYST = YES;
-				XPSDK_ROOT = SDK_301;
+				XPSDK_ROOT = SDK;
 			};
 			name = Release;
 		};

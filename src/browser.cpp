@@ -479,7 +479,7 @@ bool Browser::createBrowser() {
     }
     
 #if APL
-    #if XPLM410
+    #if XPLANE_VERSION == 12
         CefScopedLibraryLoader library_loader;
         if (!library_loader.LoadInMain()) {
             debug("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
@@ -540,7 +540,7 @@ bool Browser::createBrowser() {
             language = "zh-CN,zh";
             break;
 
-#ifdef XPLM410
+#if XPLANE_VERSION == 12
         case xplm_Language_Ukrainian:
             language = "uk-UA,uk";
             break;
@@ -567,7 +567,7 @@ bool Browser::createBrowser() {
     browser_settings.windowless_frame_rate = AppState::getInstance()->config.framerate;
     browser_settings.background_color = CefColorSetARGB(0xFF, 0xFF, 0xFF, 0xFF);
 
-#ifndef XPLM410
+#if XPLANE_VERSION == 11
     // CEF is not automatically loaded when starting X-Plane 11. Initialize CEF.
     CefRefPtr<CefApp> app;
     CefSettings settings;

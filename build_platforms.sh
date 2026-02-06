@@ -31,14 +31,14 @@ done
 
 echo "Building for platforms: \033[1m$PLATFORMS\033[0m\n"
 
-echo "Which SDK version do you want to build with? (301/410):"
-read SDK_VERSION
+echo "Which X-Plane version do you want to build for? (11/12):"
+read XPLANE_VERSION
 
-if [ -z "$SDK_VERSION" ]; then
-    SDK_VERSION=410
+if [ -z "$XPLANE_VERSION" ]; then
+    XPLANE_VERSION=12
 fi
 
-echo "Building with SDK version $SDK_VERSION\n"
+echo "Building with SDK version $XPLANE_VERSION\n"
 echo "Clean build directory? (y/n):"
 read CLEAN_BUILD
 
@@ -65,10 +65,10 @@ for platform in $PLATFORMS; do
     if [ $platform = "lin" ]; then
         docker build -t gcc-cmake -f ./docker/Dockerfile.linux . && \
         docker run --user $(id -u):$(id -g) --rm -v $(pwd):/src -w /src gcc-cmake:latest bash -c "\
-        cmake -DCMAKE_CXX_FLAGS='-march=x86-64' -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DSDK_VERSION=$SDK_VERSION -Bbuild/$platform -H. && \
+        cmake -DCMAKE_CXX_FLAGS='-march=x86-64' -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DXPLANE_VERSION=$XPLANE_VERSION -Bbuild/$platform -H. && \
         make -C build/$platform -j\$(nproc)"
     else
-        cmake -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DSDK_VERSION=$SDK_VERSION -Bbuild/$platform -H.
+        cmake -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DXPLANE_VERSION=$XPLANE_VERSION -Bbuild/$platform -H.
         make -C build/$platform
     fi
 
@@ -96,13 +96,13 @@ for platform in $AVAILABLE_PLATFORMS; do
         cp build/$platform/${platform}_x64/${PROJECT_NAME}.xpl build/dist/${platform}_x64/${PROJECT_NAME}.xpl
     fi
 
-    if echo $PLATFORMS | grep -q $platform && [ -d "lib/${platform}_x64/dist_${SDK_VERSION}" ]; then
-        cp -r lib/${platform}_x64/dist_${SDK_VERSION}/* build/dist/${platform}_x64
+    if echo $PLATFORMS | grep -q $platform && [ -d "lib/${platform}_x64/dist_${XPLANE_VERSION}" ]; then
+        cp -r lib/${platform}_x64/dist_${XPLANE_VERSION}/* build/dist/${platform}_x64
     fi
 
-    if echo $PLATFORMS | grep -q $platform && [ -d "lib/${platform}_x64/dist_extra_${SDK_VERSION}" ] && [ "$EXTRA_FILES" = "y" ]; then
+    if echo $PLATFORMS | grep -q $platform && [ -d "lib/${platform}_x64/dist_extra_${XPLANE_VERSION}" ] && [ "$EXTRA_FILES" = "y" ]; then
         mkdir -p build/extra_${platform}/${platform}_x64
-        cp -r lib/${platform}_x64/dist_extra_${SDK_VERSION}/* build/extra_${platform}/${platform}_x64
+        cp -r lib/${platform}_x64/dist_extra_${XPLANE_VERSION}/* build/extra_${platform}/${platform}_x64
     fi
 done
 
@@ -112,20 +112,14 @@ cp -r assets build/dist
 # echo "$default_ini" > build/dist/config.ini
 
 # Only add Skunkcrafts for XP12
-if [ $SDK_VERSION -ge 400 ]; then
+if [ $XPLANE_VERSION -ge 12 ]; then
     echo "module|https://ramonster.nl/avitab-browser\nname|AviTab Browser\nversion|$VERSION\nlocked|false\ndisabled|false\nzone|custom" > build/dist/skunkcrafts_updater.cfg
 fi
 
 cd build
 mv dist $PROJECT_NAME
 
-if [ $SDK_VERSION -lt 400 ]; then
-    XPLANE_VERSION=XP11
-else
-    XPLANE_VERSION=XP12
-fi
-
-VERSION=$VERSION-$XPLANE_VERSION
+VERSION=$VERSION-XP$XPLANE_VERSION
 
 rm -f $PROJECT_NAME-$VERSION.zip
 zip -rq $PROJECT_NAME-$VERSION.zip $PROJECT_NAME -x "*/.DS_Store" -x "*/__MACOSX/*"
@@ -133,9 +127,9 @@ zip -rq $PROJECT_NAME-$VERSION.zip $PROJECT_NAME -x "*/.DS_Store" -x "*/__MACOSX
 if [ "$EXTRA_FILES" = "y" ]; then
     for platform in $PLATFORMS; do
         if [ -d "extra_${platform}" ]; then
-            echo "The '${platform}_x64' folder contains additional files required by the $PROJECT_NAME plugin for $XPLANE_VERSION.\nUnzip and merge these files with the plugin folder in your X-Plane installation directory, usually located at 'Resources/plugins/$PROJECT_NAME/${platform}_x64'." > extra_${platform}/README.txt
-            rm -f $XPLANE_VERSION-$platform-additional-files.zip
-            zip -rq $XPLANE_VERSION-$platform-additional-files.zip extra_${platform} -x ".DS_Store" -x "__MACOSX"
+            echo "The '${platform}_x64' folder contains additional files required by the $PROJECT_NAME plugin for XP$XPLANE_VERSION.\nUnzip and merge these files with the plugin folder in your X-Plane installation directory, usually located at 'Resources/plugins/$PROJECT_NAME/${platform}_x64'." > extra_${platform}/README.txt
+            rm -f XP$XPLANE_VERSION-$platform-additional-files.zip
+            zip -rq XP$XPLANE_VERSION-$platform-additional-files.zip extra_${platform} -x ".DS_Store" -x "__MACOSX"
         fi
     done
 fi

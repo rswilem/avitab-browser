@@ -1,5 +1,5 @@
 #ifndef XPLM301
-    #error This is made to be compiled against the XPLM301 for XP11 and XPLM410 SDK for XP12
+    #error This is made to be compiled against the X-Plane 4.2.0 SDK for XP11 and XP12
 #endif
 
 #include "config.h"

@@ -22,9 +22,10 @@ This plugin makes use of the already present CEF (Chromium Embedded Framework) i
 
 ### 1. XPlane SDK
 
-This project supports [SDK 410](https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK410.zip) for XP12 and [SDK 301](https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK301.zip) for XP11.
+Download the latest [X-Plane SDK](https://developer.x-plane.com/sdk/plugin-sdk-downloads/) to get started.
+Place the file in the root folder as shown below and unzip it.
 
-Rename the downloaded `SDK` folder to `SDK_301` or `SDK_410` and use the following folder structure:
+The latest SDK at the time of writing is X-Plane SDK 4.2.0.
 
 ```
 avitab-browser/
@@ -33,14 +34,12 @@ avitab-browser/
 ├── LICENSE.md
 ├── .gitignore
 │
-├── SDK_410       #SDK 410
+├── SDK
 |  ├── CHeaders
 |  ├── Delphi
 |  ├── Libraries
 |  ├── ...
 |  ├── README.txt
-|
-├── SDK_301       #SDK 301
 |
 .....
 ```
@@ -62,9 +61,7 @@ avitab-browser/
 ├── LICENSE.md
 ├── .gitignore
 │
-├── SDK_410
-|
-├── SDK_301
+├── SDK
 |
 ├── lib               #<----- lib
 |  ├── mac_x64
@@ -92,9 +89,7 @@ avitab-browser/
 ├── LICENSE.md
 ├── .gitignore
 │
-├── SDK_410
-|
-├── SDK_301
+├── SDK
 |
 ├── lib
 |  ├── mac_x64

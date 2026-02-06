@@ -20,7 +20,7 @@
 
 #define PRODUCT_NAME "avitab-browser"
 #define FRIENDLY_NAME "AviTab Browser"
-#define VERSION "1.0.3"
+#define VERSION "1.0.4"
 #define VERSION_CHECK_URL "https://api.github.com/repos/rswilem/avitab-browser/releases?per_page=1&page=1"
 #define ALL_PLUGINS_DIRECTORY "/Resources/plugins/"
 #define PLUGIN_DIRECTORY (ALL_PLUGINS_DIRECTORY PRODUCT_NAME)

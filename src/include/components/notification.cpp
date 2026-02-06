@@ -2,7 +2,7 @@
 #include "drawing.h"
 #include <XPLMGraphics.h>
 #include <XPLMUtilities.h>
-#ifdef XPLM410
+#if XPLANE_VERSION == 12
 #include <XPLMSound.h>
 #endif
 #include "dataref.h"
@@ -35,7 +35,7 @@ Notification::Notification(std::string aTitle, std::string body) {
     bodyLines = Drawing::WrapWordsToLines(xplmFont_Proportional, body, width - ((horizontalTextPadding * 2.0f) / AppState::getInstance()->tabletDimensions.height));
     height = (topPadding + titleBodyPadding + (bodyLines.size() * bodyLineHeight) + buttonPadding + dismissButton->pixelsHeight + buttonPadding) / AppState::getInstance()->tabletDimensions.height;
     
-#ifdef XPLM410
+#if XPLANE_VERSION == 12
     std::ifstream file(Path::getInstance()->pluginDirectory + "/assets/notify.pcm", std::ios::binary | std::ios::ate);
     if (file) {
         file.seekg(0, std::ios::beg);

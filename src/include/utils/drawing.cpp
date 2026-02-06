@@ -1,6 +1,8 @@
 #include "drawing.h"
-#include "config.h"
+
 #include "appstate.h"
+#include "config.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -26,7 +28,7 @@ void Drawing::DrawRect(float x1, float y1, float x2, float y2) {
     glVertex2f(AbsoluteX(x1), AbsoluteY(y2));
     glVertex2f(AbsoluteX(x2), AbsoluteY(y2));
     glVertex2f(AbsoluteX(x2), AbsoluteY(y1));
-    
+
     glEnd();
 }
 
@@ -54,7 +56,7 @@ void Drawing::DrawRoundedRect(float x1, float y1, float x2, float y2, float radi
         glVertex2f(AbsoluteX(x2) - radius + cos(angle) * radius, AbsoluteY(y2) - radius - sin(angle) * radius);
     }
     glEnd();
-    
+
     glBegin(GL_TRIANGLE_FAN);
     glVertex2f(AbsoluteX(x1) + radius, AbsoluteY(y1) + radius);
     for (int i = 0; i <= cornerSegments; ++i) {
@@ -90,21 +92,23 @@ void Drawing::DrawRoundedRect(float x1, float y1, float x2, float y2, float radi
     }
 }
 
-std::vector<std::string> Drawing::SplitTextToWords(const std::string & text) {
-    auto isWrapChar = [](char c) -> bool { return c == ' ' || c == '\n'; };
+std::vector<std::string> Drawing::SplitTextToWords(const std::string &text) {
+    auto isWrapChar = [](char c) -> bool {
+        return c == ' ' || c == '\n';
+    };
     size_t wordCount = 1 + std::count_if(text.cbegin(), text.cend(), isWrapChar);
 
     std::vector<std::string> ret;
     ret.reserve(wordCount);
 
     size_t currentPosition = 0;
-    while(true) {
+    while (true) {
         size_t splitPosition = text.find_first_of(" \n", currentPosition);
-        if(splitPosition == std::string::npos) {
+        if (splitPosition == std::string::npos) {
             ret.push_back(text.substr(currentPosition));
             break;
         }
-        
+
         std::string word = text.substr(currentPosition, splitPosition - currentPosition);
         if (!word.empty()) {
             ret.push_back(word);
@@ -123,18 +127,17 @@ std::vector<std::string> Drawing::WrapWordsToLines(XPLMFontID font, const std::s
     float spaceWidth = XPLMMeasureString(font, " ", 1);
     float spaceLeft = 0;
     std::vector<std::string> lines;
-    for(const std::string & word : words) {
+    for (const std::string &word : words) {
         if (word == "\n") {
             if (spaceLeft == 0) {
                 lines.push_back("");
-            }
-            else {
+            } else {
                 spaceLeft = 0;
             }
             continue;
         }
-        
-        float wordWidth = XPLMMeasureString(font, word.c_str(), (int)word.size());
+
+        float wordWidth = XPLMMeasureString(font, word.c_str(), (int) word.size());
 
         if (wordWidth + spaceWidth <= spaceLeft) {
             lines.back() += " ";
@@ -152,24 +155,19 @@ std::vector<std::string> Drawing::WrapWordsToLines(XPLMFontID font, const std::s
 }
 
 float Drawing::TextWidth(std::string text, float scale) {
-    float textWidth = XPLMMeasureString(xplmFont_Proportional, text.c_str(), (int)text.length()) * scale;
+    float textWidth = XPLMMeasureString(xplmFont_Proportional, text.c_str(), (int) text.length()) * scale;
     return textWidth / AppState::getInstance()->tabletDimensions.width;
 }
 
 float Drawing::DrawText(std::string text, float x, float y, float scale, std::array<float, 3> color) {
     float textWidth = TextWidth(text, scale);
-    
+
     glPushMatrix();
     glTranslatef(AbsoluteX(x - textWidth / 2.0f), AbsoluteY(y) - 3.0f, 0.0f);
     glScalef(scale, scale, 1.0f);
-    
-#ifdef XPLM410
+
     XPLMDrawString(color.data(), 0, 0, text.c_str(), nullptr, xplmFont_Proportional);
-#else
-    XPLMDrawString(color.data(), 0, 0, const_cast<char*>(text.c_str()), nullptr, xplmFont_Proportional);
-#endif
     glPopMatrix();
-    
+
     return textWidth;
 }
-
