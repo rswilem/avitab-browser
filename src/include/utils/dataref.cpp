@@ -286,6 +286,9 @@ bool Dataref::getMouse(float *normalizedX, float *normalizedY, float windowX, fl
             mouseX = lastMouseX + (windowX - lastWindowX) / 1.5;
             mouseY = lastMouseY + (windowY - lastWindowY) / 1.5;
         }
+        else if (abs(viewHeading - lastViewHeading) > 5 && mouseX == lastMouseX && mouseY == lastMouseY) {
+            return false;
+        }
         else {
             lastMouseX = mouseX;
             lastMouseY = mouseY;
