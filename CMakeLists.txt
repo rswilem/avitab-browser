@@ -21,7 +21,7 @@ SET(XPLANE_INCLUDES_PATH "${CMAKE_CURRENT_SOURCE_DIR}/SDK/CHeaders/" CACHE STRIN
 IF(APPLE)
     FIND_PACKAGE(CURL REQUIRED)
     SET(CURL_LIBRARY CURL::libcurl)
-    IF (NOT APPLE OR XPLANE_VERSION GREATER_EQUAL 12) # Don't include CEF for X-Plane 11 on macOS - cefclient Helper.app handles this.
+    IF (XPLANE_VERSION GREATER_EQUAL 12) # Don't include CEF for X-Plane 11 on macOS - cefclient Helper.app handles this.
         FIND_LIBRARY(CEF_LIBRARY "Chromium Embedded Framework" PATHS "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DIRECTORY_PREFIX}/cef")
     ENDIF()
     SET(CEF_WRAPPER "${CMAKE_CURRENT_SOURCE_DIR}/lib/${DIRECTORY_PREFIX}/cef/libcef_dll_wrapper.a")
@@ -94,14 +94,14 @@ ENDFUNCTION()
 
 FUNCTION(add_xplane_sdk_definitions library_name library_version) 
     IF(APPLE)
-        TARGET_COMPILE_DEFINITIONS(${library_name} PUBLIC -DAPL=1 -DIBM=0 -DLIN=0)
+        TARGET_COMPILE_DEFINITIONS(${library_name} PUBLIC -DAPL=1 -DIBM=0 -DLIN=0 -DXPLANE_VERSION=${XPLANE_VERSION})
     ELSEIF(UNIX)
-        TARGET_COMPILE_DEFINITIONS(${library_name} PUBLIC -DAPL=0 -DIBM=0 -DLIN=1)
+        TARGET_COMPILE_DEFINITIONS(${library_name} PUBLIC -DAPL=0 -DIBM=0 -DLIN=1 -DXPLANE_VERSION=${XPLANE_VERSION})
         TARGET_COMPILE_OPTIONS(${library_name} PRIVATE "-static")
         TARGET_LINK_OPTIONS(${library_name} PRIVATE "-static-libstdc++" "-static-libgcc")
     ELSEIF(WIN32)
         TARGET_COMPILE_OPTIONS(${library_name} PRIVATE "-static")
-        TARGET_COMPILE_DEFINITIONS(${library_name} PUBLIC -DAPL=0 -DIBM=1 -DLIN=0 -DUSING_CEF_SHARED=1)
+        TARGET_COMPILE_DEFINITIONS(${library_name} PUBLIC -DAPL=0 -DIBM=1 -DLIN=0 -DUSING_CEF_SHARED=1 -DXPLANE_VERSION=${XPLANE_VERSION})
         TARGET_LINK_OPTIONS(${library_name} PRIVATE "-static-libstdc++" "-static-libgcc" "-static" "-Wl,--allow-multiple-definition")
     ENDIF()
 
