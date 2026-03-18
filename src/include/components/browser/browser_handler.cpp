@@ -227,8 +227,10 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
                 <h1 class="text-3xl font-bold underline">)" +
                                        std::string(FRIENDLY_NAME) + R"(</h1>
                 <div>
-                    <input id="alert-text" placeholder="Type here" />
+                    <input id="alert-text" placeholder="Type here" class="border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                     <button onclick="javascript:alert(document.getElementById('alert-text').value || 'Test');">Show alert</button>
+                    <span class="mx-2 text-gray-500">|</span>
+                    <button onclick="javascript:confirm(document.getElementById('alert-text').value || 'Confirm?');">Show confirm</button>
                 </div>
         
                 <div>

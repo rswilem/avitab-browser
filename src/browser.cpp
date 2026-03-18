@@ -45,6 +45,7 @@ Browser::Browser() {
     backButton = nullptr;
     handler = nullptr;
     currentUrl = "";
+    leftMouseButtonDown = false;
 }
 
 void Browser::initialize() {
@@ -309,7 +310,9 @@ void Browser::mouseMove(float normalizedX, float normalizedY) {
     }
 
     CefMouseEvent mouseEvent = getMouseEvent(normalizedX, normalizedY);
-    mouseEvent.modifiers |= EVENTFLAG_LEFT_MOUSE_BUTTON;
+    if (leftMouseButtonDown) {
+        mouseEvent.modifiers |= EVENTFLAG_LEFT_MOUSE_BUTTON;
+    }
     handler->browserInstance->GetHost()->SendMouseMoveEvent(mouseEvent, false);
 }
 
@@ -328,12 +331,14 @@ bool Browser::click(XPLMMouseStatus status, float normalizedX, float normalizedY
     }
 
     if (status == xplm_MouseDown) {
+        leftMouseButtonDown = true;
         handler->browserInstance->GetHost()->SendMouseClickEvent(mouseEvent, MBT_LEFT, false, 1);
     } else if (status == xplm_MouseDrag) {
         // Yes, we already send this event in mouseMove(). Adding the line below makes it more responsive.
         mouseEvent.modifiers |= EVENTFLAG_LEFT_MOUSE_BUTTON;
         handler->browserInstance->GetHost()->SendMouseMoveEvent(mouseEvent, false);
     } else {
+        leftMouseButtonDown = false;
         handler->browserInstance->GetHost()->SendMouseClickEvent(mouseEvent, MBT_LEFT, true, 1);
     }
 
