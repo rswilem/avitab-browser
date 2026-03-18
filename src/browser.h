@@ -27,6 +27,7 @@ public:
     
     void initialize();
     void destroy();
+    void resetHandler();
     void visibilityWillChange(bool becomesVisible);
     void update();
     void draw();

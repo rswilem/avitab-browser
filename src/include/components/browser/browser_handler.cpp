@@ -59,6 +59,9 @@ bool BrowserHandler::DoClose(CefRefPtr<CefBrowser> browser) {
     if (AppState::getInstance()->statusbar) {
         AppState::getInstance()->statusbar->setActiveTab("");
     }
+
+    AppState::getInstance()->hideBrowser();
+
     return false;
 }
 
