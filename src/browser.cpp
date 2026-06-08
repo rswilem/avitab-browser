@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <include/base/cef_bind.h>
 #include <include/base/cef_callback.h>
 #include <include/cef_app.h>
@@ -35,6 +36,8 @@
 #include <include/wrapper/cef_library_loader.h>
 #elif LIN
 #include "unix_keycodes.h"
+#elif IBM
+#include <windows.h>
 #endif
 
 Browser::Browser() {
@@ -590,9 +593,96 @@ bool Browser::createBrowser() {
 
 #if IBM
     CefMainArgs main_args(GetModuleHandle(nullptr));
-    CefString(&settings.resources_dir_path) = Path::getInstance()->pluginDirectory + "/win_x64/res";
-    CefString(&settings.locales_dir_path) = Path::getInstance()->pluginDirectory + "/win_x64/res/locales";
-    CefString(&settings.browser_subprocess_path) = Path::getInstance()->pluginDirectory + "/win_x64/avitab_cef_helper.exe";
+
+    std::string resourcesDir = Path::getInstance()->pluginDirectory + "/win_x64/res";
+    std::string localesDir = Path::getInstance()->pluginDirectory + "/win_x64/res/locales";
+    std::string helperPath = Path::getInstance()->pluginDirectory + "/win_x64/avitab_cef_helper.exe";
+
+    debug("[Windows CEF Init] Resources directory: %s\n", resourcesDir.c_str());
+    debug("[Windows CEF Init] Locales directory: %s\n", localesDir.c_str());
+    debug("[Windows CEF Init] Helper exe path: %s\n", helperPath.c_str());
+
+    // Check if required directories and files exist
+    if (!std::filesystem::exists(resourcesDir)) {
+        debug("[Windows CEF Init ERROR] Resources directory does not exist: %s\n", resourcesDir.c_str());
+    } else {
+        debug("[Windows CEF Init] Resources directory exists\n");
+    }
+
+    if (!std::filesystem::exists(localesDir)) {
+        debug("[Windows CEF Init ERROR] Locales directory does not exist: %s\n", localesDir.c_str());
+    } else {
+        debug("[Windows CEF Init] Locales directory exists\n");
+    }
+
+    if (!std::filesystem::exists(helperPath)) {
+        debug("[Windows CEF Init ERROR] Helper exe does not exist: %s\n", helperPath.c_str());
+    } else {
+        debug("[Windows CEF Init] Helper exe exists\n");
+        // Check if we can read the file
+        std::ifstream helperCheck(helperPath);
+        if (!helperCheck.is_open()) {
+            debug("[Windows CEF Init ERROR] Cannot open/read helper exe (may be a permissions issue)\n");
+        } else {
+            debug("[Windows CEF Init] Helper exe is readable\n");
+            helperCheck.close();
+        }
+    }
+
+    // Check for all critical CEF files and data from dist_extra_11
+    std::string winX64Dir = Path::getInstance()->pluginDirectory + "/win_x64";
+
+    // Critical executables and libraries
+    std::vector<std::string> criticalFiles = {
+        "avitab_cef_helper.exe",
+        "libcef.dll",
+        "chrome_elf.dll",
+        "d3dcompiler_47.dll",
+        "libEGL.dll",
+        "libGLESv2.dll",
+        "libcurl-x64.dll",
+        "vk_swiftshader.dll",
+        "vulkan-1.dll"};
+
+    // Required data files
+    std::vector<std::string> dataFiles = {
+        "icudtl.dat",
+        "snapshot_blob.bin",
+        "v8_context_snapshot.bin",
+        "curl-ca-bundle.crt",
+        "vk_swiftshader_icd.json"};
+
+    debug("[Windows CEF Init] Checking critical files from dist_extra_11...\n");
+    bool allCriticalFilesExist = true;
+
+    for (const auto &file : criticalFiles) {
+        std::string filePath = winX64Dir + "/" + file;
+        if (!std::filesystem::exists(filePath)) {
+            debug("[Windows CEF Init ERROR] Critical file missing: %s\n", filePath.c_str());
+            allCriticalFilesExist = false;
+        } else {
+            debug("[Windows CEF Init] Found: %s\n", file.c_str());
+        }
+    }
+
+    for (const auto &file : dataFiles) {
+        std::string filePath = winX64Dir + "/" + file;
+        if (!std::filesystem::exists(filePath)) {
+            debug("[Windows CEF Init ERROR] Required data file missing: %s\n", filePath.c_str());
+            allCriticalFilesExist = false;
+        } else {
+            debug("[Windows CEF Init] Found: %s\n", file.c_str());
+        }
+    }
+
+    if (!allCriticalFilesExist) {
+        debug("[Windows CEF Init WARNING] Some files from dist_extra_11 are missing. Plugin may not work correctly.\n");
+        debug("[Windows CEF Init WARNING] Ensure all files from lib/win_x64/dist_extra_11/ are copied to <plugin>/win_x64/\n");
+    }
+
+    CefString(&settings.resources_dir_path) = resourcesDir;
+    CefString(&settings.locales_dir_path) = localesDir;
+    CefString(&settings.browser_subprocess_path) = helperPath;
 #elif APL
     settings.no_sandbox = true;
     CefMainArgs main_args;
@@ -606,8 +696,54 @@ bool Browser::createBrowser() {
 #endif
 
     debug("Initializing a new CEF instance for X-Plane 11...\n");
+
+#if IBM
+    // Clear any previous Windows errors before initialization
+    SetLastError(0);
+#endif
+
     if (!CefInitialize(main_args, settings, app, nullptr)) {
-        debug("Could not initialize CEF instance.\n");
+        debug("[CEF Init ERROR] Could not initialize CEF instance.\n");
+
+#if IBM
+        DWORD lastError = GetLastError();
+        if (lastError != 0) {
+            char errorBuffer[1024] = {0};
+            FormatMessageA(
+                FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                nullptr,
+                lastError,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                errorBuffer,
+                sizeof(errorBuffer) - 1,
+                nullptr);
+            debug("[Windows Error 127 Details] Error Code: %lu (0x%lX)\n", lastError, lastError);
+            debug("[Windows Error 127 Details] Error Message: %s\n", errorBuffer);
+        } else {
+            debug("[Windows Error 127 Details] GetLastError() returned 0 - this suggests CEF library loading failed\n");
+        }
+
+        // Additional diagnostics
+        debug("[Windows Error 127 Diagnostics] Checking critical CEF components...\n");
+        HMODULE libcef = LoadLibraryA((Path::getInstance()->pluginDirectory + "/win_x64/libcef.dll").c_str());
+        if (libcef) {
+            debug("[Windows Error 127 Diagnostics] libcef.dll loaded successfully\n");
+            FreeLibrary(libcef);
+        } else {
+            DWORD libcefError = GetLastError();
+            char libcefErrorBuffer[1024] = {0};
+            FormatMessageA(
+                FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                nullptr,
+                libcefError,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                libcefErrorBuffer,
+                sizeof(libcefErrorBuffer) - 1,
+                nullptr);
+            debug("[Windows Error 127 Diagnostics] libcef.dll failed to load: %s (Error: %lu)\n", libcefErrorBuffer, libcefError);
+        }
+#endif
+
         return false;
     }
     debug("CEF instance for X-Plane 11 has been set up successfully.\n");

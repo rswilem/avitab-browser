@@ -88,8 +88,10 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
 PLUGIN_API void XPluginStop(void) {
     XPLMUnregisterDrawCallback(draw, xplm_Phase_Gauges, 0, nullptr);
     XPLMUnregisterFlightLoopCallback(update, nullptr);
-    XPLMDestroyWindow(AppState::getInstance()->mainWindow);
-    AppState::getInstance()->mainWindow = nullptr;
+    if (AppState::getInstance()->mainWindow) {
+        XPLMDestroyWindow(AppState::getInstance()->mainWindow);
+        AppState::getInstance()->mainWindow = nullptr;
+    }
     
     destroyCursor();
     captureClickEvents(false);
@@ -339,15 +341,17 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
     }
 #endif
     
-    if (AppState::getInstance()->browser->hasInputFocus() != XPLMHasKeyboardFocus(AppState::getInstance()->mainWindow)) {
-        if (AppState::getInstance()->browser->hasInputFocus()) {
-            AppState::getInstance()->browser->setFocus(true);
-            XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
-            XPLMTakeKeyboardFocus(AppState::getInstance()->mainWindow);
-        }
-        else {
-            AppState::getInstance()->browser->setFocus(false);
-            XPLMTakeKeyboardFocus(0);
+    if (AppState::getInstance()->mainWindow) {
+        if (AppState::getInstance()->browser->hasInputFocus() != XPLMHasKeyboardFocus(AppState::getInstance()->mainWindow)) {
+            if (AppState::getInstance()->browser->hasInputFocus()) {
+                AppState::getInstance()->browser->setFocus(true);
+                XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
+                XPLMTakeKeyboardFocus(AppState::getInstance()->mainWindow);
+            }
+            else {
+                AppState::getInstance()->browser->setFocus(false);
+                XPLMTakeKeyboardFocus(0);
+            }
         }
     }
 
@@ -369,7 +373,11 @@ void registerWindow() {
         XPLMDestroyWindow(AppState::getInstance()->mainWindow);
         AppState::getInstance()->mainWindow = 0;
     }
-    
+
+    if (Dataref::getInstance()->get<bool>("sim/graphics/VR/enabled")) {
+        return;
+    }
+
     int winLeft, winTop, winRight, winBot;
     XPLMGetScreenBoundsGlobal(&winLeft, &winTop, &winRight, &winBot);
     XPLMCreateWindow_t params;
@@ -386,33 +394,20 @@ void registerWindow() {
     params.handleMouseWheelFunc = mouseWheel;
     params.handleKeyFunc = keyPressed;
     params.handleCursorFunc = mouseCursor;
-    params.layer = Dataref::getInstance()->get<bool>("sim/graphics/VR/enabled") ? xplm_WindowLayerFloatingWindows : xplm_WindowLayerFlightOverlay;
+    params.layer = xplm_WindowLayerFlightOverlay;
     params.decorateAsFloatingWindow = xplm_WindowDecorationNone;
-    
+
     AppState::getInstance()->mainWindow = XPLMCreateWindowEx(&params);
     XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
-    
+
     XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
 }
 
 void captureVrChanges() {
-    std::function setVrWindowPositioningMode = [](){
-        XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
-        
-        if (Dataref::getInstance()->get<bool>("sim/graphics/VR/using_3d_mouse")) {
-            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowVR, -1);
-        }
-        else {
-            XPLMSetWindowPositioningMode(AppState::getInstance()->mainWindow, xplm_WindowFullScreenOnMonitor, -1);
-        }
-    };
-    
-    Dataref::getInstance()->monitorExistingDataref<bool>("sim/graphics/VR/enabled", [setVrWindowPositioningMode](bool isVrEnabled) {
+    Dataref::getInstance()->monitorExistingDataref<bool>("sim/graphics/VR/enabled", [](bool isVrEnabled) {
         registerWindow();
-        
+
         if (isVrEnabled) {
-            setVrWindowPositioningMode();
-            
             debug("VR is now enabled.\n");
             Dataref::getInstance()->bindExistingCommand("sim/VR/reserved/select", [](XPLMCommandPhase inPhase) {
                 if (inPhase == xplm_CommandBegin) {
@@ -424,19 +419,15 @@ void captureVrChanges() {
                 else if (inPhase == xplm_CommandEnd) {
                     mouseClicked(0, -1, -1, xplm_MouseUp, nullptr);
                 }
-                
+
                 return 1;
             });
         }
         else {
             debug("VR is disabled.\n");
             Dataref::getInstance()->unbind("sim/VR/reserved/select");
-            setVrWindowPositioningMode();
+            captureClickEvents(true);
         }
-    });
-    
-    Dataref::getInstance()->monitorExistingDataref<bool>("sim/graphics/VR/using_3d_mouse", [setVrWindowPositioningMode](bool isVrUsingMouse) {
-        setVrWindowPositioningMode();
     });
 }
 
