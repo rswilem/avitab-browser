@@ -47,6 +47,10 @@ double pressedKeyTime = 0;
 
 PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
 {
+    // Capture the main thread and register the log flush loop before anything
+    // else logs, so every XPLMDebugString call is marshalled onto this thread.
+    Logger::getInstance()->initialize();
+
     strcpy(name, FRIENDLY_NAME);
     strcpy(sig, BUNDLE_ID);
     strcpy(desc, "Browser extension for the Avitab");
@@ -66,7 +70,7 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     captureVrChanges();
     initializeCursor();
     
-    debug("Plugin started (version %s)\n", VERSION);
+    Logger::getInstance()->info("Plugin started (version %s)\n", VERSION);
     
     #if DEBUG
     Dataref::getInstance()->createCommand("avitab_browser/debug/window_to_foreground", "Bring window to front", [](XPLMCommandPhase inPhase) {
@@ -97,7 +101,10 @@ PLUGIN_API void XPluginStop(void) {
     captureClickEvents(false);
     
     AppState::getInstance()->deinitialize();
-    debug("Plugin stopped\n");
+    Logger::getInstance()->info("Plugin stopped\n");
+
+    // Unregister the flush loop and drain any remaining queued messages.
+    Logger::getInstance()->destroy();
 }
 
 PLUGIN_API int XPluginEnable(void) {
@@ -111,7 +118,7 @@ PLUGIN_API int XPluginEnable(void) {
 }
 
 PLUGIN_API void XPluginDisable(void) {
-    debug("Disabling plugin...\n");
+    Logger::getInstance()->info("Disabling plugin...\n");
 }
 
 PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params) {
@@ -364,6 +371,7 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
 }
 
 int draw(XPLMDrawingPhase inPhase, int inIsBefore, void * inRefcon) {
+    Drawing::DeleteQueuedTextures();
     AppState::getInstance()->draw();
     return 1;
 }
@@ -408,7 +416,7 @@ void captureVrChanges() {
         registerWindow();
 
         if (isVrEnabled) {
-            debug("VR is now enabled.\n");
+            Logger::getInstance()->info("VR is now enabled.\n");
             Dataref::getInstance()->bindExistingCommand("sim/VR/reserved/select", [](XPLMCommandPhase inPhase) {
                 if (inPhase == xplm_CommandBegin) {
                     mouseClicked(0, -1, -1, xplm_MouseDown, nullptr);
@@ -424,7 +432,7 @@ void captureVrChanges() {
             });
         }
         else {
-            debug("VR is disabled.\n");
+            Logger::getInstance()->info("VR is disabled.\n");
             Dataref::getInstance()->unbind("sim/VR/reserved/select");
             captureClickEvents(true);
         }
@@ -437,7 +445,7 @@ void captureClickEvents(bool enable) {
     }
     
     if (enable) {
-        debug("Start capturing AviTab click events.\n");
+        Logger::getInstance()->info("Start capturing AviTab click events.\n");
         Dataref::getInstance()->bindExistingCommand("AviTab/click_left", [](XPLMCommandPhase inPhase) {
             if (inPhase == xplm_CommandBegin) {
                 mouseClicked(0, -1, -1, xplm_MouseDown, nullptr);
@@ -453,7 +461,7 @@ void captureClickEvents(bool enable) {
         });
     }
     else {
-        debug("Stopped capturing AviTab click events.\n");
+        Logger::getInstance()->info("Stopped capturing AviTab click events.\n");
         Dataref::getInstance()->unbind("AviTab/click_left");
     }
 }

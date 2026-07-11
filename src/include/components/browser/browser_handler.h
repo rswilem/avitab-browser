@@ -5,6 +5,8 @@
 
 #include <include/cef_client.h>
 #include <include/cef_version.h>
+#include <mutex>
+#include <vector>
 
 struct PopupRect {
         int x, y, width, height;
@@ -31,6 +33,15 @@ class BrowserHandler : public CefClient,
         std::string *currentUrl;
         unsigned short windowWidth;
         unsigned short windowHeight;
+        // CPU-side copy of the CEF framebuffer. OnPaint writes into this buffer;
+        // uploadPendingPaint() pushes it to the GL texture from inside an X-Plane
+        // draw callback, the only place where plugin GL calls are valid under the
+        // XP12 Metal GL bridge.
+        std::mutex paintMutex;
+        std::vector<unsigned char> paintBuffer;
+        bool paintDirty;
+        int dirtyMinX, dirtyMinY, dirtyMaxX, dirtyMaxY;
+        void copyPaintRect(const unsigned char *source, int sourceWidth, int sourceHeight, int sourceX, int sourceY, int destX, int destY, int rectWidth, int rectHeight);
         void injectAddressBar(CefRefPtr<CefBrowser> browser);
         void overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser);
 
@@ -43,6 +54,7 @@ class BrowserHandler : public CefClient,
         CefRefPtr<CefBrowser> browserInstance;
 
         void destroy();
+        void uploadPendingPaint();
 
         CefRefPtr<CefDisplayHandler> GetDisplayHandler() override {
             return this;

@@ -8,7 +8,9 @@
 #include "config.h"
 #include "path.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <include/base/cef_callback.h>
 #include <include/cef_app.h>
 #include <include/cef_base.h>
@@ -27,12 +29,19 @@ BrowserHandler::BrowserHandler(int aTextureId, std::string *aCurrentUrl, unsigne
     textureId = aTextureId;
     popupRect = {0, 0, 0, 0};
     popupShown = false;
+    needsFullDraw = true;
     currentUrl = aCurrentUrl;
     windowWidth = aWidth;
     windowHeight = aHeight;
     cursorState = CursorDefault;
     hasInputFocus = false;
     browserInstance = nullptr;
+    paintBuffer.resize((size_t) windowWidth * windowHeight * 4, 0xFF);
+    paintDirty = false;
+    dirtyMinX = windowWidth;
+    dirtyMinY = windowHeight;
+    dirtyMaxX = 0;
+    dirtyMaxY = 0;
 }
 
 BrowserHandler::~BrowserHandler() {
@@ -104,53 +113,106 @@ void BrowserHandler::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefStrin
     AppState::getInstance()->statusbar->setActiveTab(title.ToString());
 }
 
+// OnPaint runs outside X-Plane's draw callbacks (from the CEF message loop
+// pump), where the GL bridge context is not ours to use. Under the XP12 Metal
+// renderer, issuing GL here entangles X-Plane's GL-on-Metal command stream and
+// can deadlock the render thread in waitUntilScheduled. So: only copy the
+// pixels into a CPU buffer here; uploadPendingPaint() does the GL upload from
+// the draw callback.
 void BrowserHandler::OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList &dirtyRects, const void *buffer, int width, int height) {
     if (!textureId) {
         return;
     }
 
-    XPLMBindTexture2d(textureId, 0);
-    constexpr uint32_t bytes_per_pixel = 4;
+    std::lock_guard<std::mutex> lock(paintMutex);
+    const unsigned char *pixels = static_cast<const unsigned char *>(buffer);
 
-    for (const auto &rect : dirtyRects) {
-        const uint8_t *rectBuffer = static_cast<const uint8_t *>(buffer) + rect.y * width * bytes_per_pixel + rect.x * bytes_per_pixel;
-
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, width);
-
-        if (needsFullDraw) {
-            glTexSubImage2D(
-                GL_TEXTURE_2D,
-                0,
-                0, 0,
-                width, height,
-                GL_BGRA,
-                GL_UNSIGNED_BYTE,
-                buffer);
-            needsFullDraw = false;
-        } else if (popupShown) {
-            if (type == PET_POPUP) {
-                glTexSubImage2D(
-                    GL_TEXTURE_2D,
-                    0,
-                    popupRect.x + rect.x, popupRect.y + rect.y,
-                    rect.width, rect.height,
-                    GL_BGRA,
-                    GL_UNSIGNED_BYTE,
-                    rectBuffer);
-            }
-        } else {
-            glTexSubImage2D(
-                GL_TEXTURE_2D,
-                0,
-                rect.x, rect.y,
-                rect.width, rect.height,
-                GL_BGRA,
-                GL_UNSIGNED_BYTE,
-                rectBuffer);
+    if (type == PET_POPUP) {
+        if (!popupShown) {
+            return;
         }
 
+        for (const auto &rect : dirtyRects) {
+            copyPaintRect(pixels, width, height, rect.x, rect.y, popupRect.x + rect.x, popupRect.y + rect.y, rect.width, rect.height);
+        }
+    } else if (needsFullDraw) {
+        copyPaintRect(pixels, width, height, 0, 0, 0, 0, width, height);
+        needsFullDraw = false;
+    } else if (!popupShown) {
+        for (const auto &rect : dirtyRects) {
+            copyPaintRect(pixels, width, height, rect.x, rect.y, rect.x, rect.y, rect.width, rect.height);
+        }
+    }
+    // View updates while a popup is shown are dropped, same as before: the view
+    // buffer does not contain the popup, so copying it would erase the popup.
+}
+
+void BrowserHandler::copyPaintRect(const unsigned char *source, int sourceWidth, int sourceHeight, int sourceX, int sourceY, int destX, int destY, int rectWidth, int rectHeight) {
+    constexpr int bytesPerPixel = 4;
+
+    // Clamp against both the source buffer and the destination framebuffer.
+    if (destX < 0) {
+        sourceX -= destX;
+        rectWidth += destX;
+        destX = 0;
+    }
+    if (destY < 0) {
+        sourceY -= destY;
+        rectHeight += destY;
+        destY = 0;
+    }
+    rectWidth = std::min({rectWidth, sourceWidth - sourceX, windowWidth - destX});
+    rectHeight = std::min({rectHeight, sourceHeight - sourceY, windowHeight - destY});
+    if (rectWidth <= 0 || rectHeight <= 0 || sourceX < 0 || sourceY < 0) {
+        return;
+    }
+
+    for (int row = 0; row < rectHeight; ++row) {
+        const unsigned char *sourceRow = source + ((size_t) (sourceY + row) * sourceWidth + sourceX) * bytesPerPixel;
+        unsigned char *destRow = paintBuffer.data() + ((size_t) (destY + row) * windowWidth + destX) * bytesPerPixel;
+        memcpy(destRow, sourceRow, (size_t) rectWidth * bytesPerPixel);
+    }
+
+    dirtyMinX = std::min(dirtyMinX, destX);
+    dirtyMinY = std::min(dirtyMinY, destY);
+    dirtyMaxX = std::max(dirtyMaxX, destX + rectWidth);
+    dirtyMaxY = std::max(dirtyMaxY, destY + rectHeight);
+    paintDirty = true;
+}
+
+// Must be called from an X-Plane draw callback: this is the only context where
+// plugin GL is valid under the Metal renderer.
+void BrowserHandler::uploadPendingPaint() {
+    if (!textureId) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(paintMutex);
+    if (!paintDirty) {
+        return;
+    }
+
+    int rectWidth = dirtyMaxX - dirtyMinX;
+    int rectHeight = dirtyMaxY - dirtyMinY;
+    if (rectWidth > 0 && rectHeight > 0) {
+        XPLMBindTexture2d(textureId, 0);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, windowWidth);
+        glTexSubImage2D(
+            GL_TEXTURE_2D,
+            0,
+            dirtyMinX, dirtyMinY,
+            rectWidth, rectHeight,
+            GL_BGRA,
+            GL_UNSIGNED_BYTE,
+            paintBuffer.data() + ((size_t) dirtyMinY * windowWidth + dirtyMinX) * 4);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     }
+
+    paintDirty = false;
+    dirtyMinX = windowWidth;
+    dirtyMinY = windowHeight;
+    dirtyMaxX = 0;
+    dirtyMaxY = 0;
 }
 
 bool BrowserHandler::OnCursorChange(CefRefPtr<CefBrowser> browser, CefCursorHandle cursor, cef_cursor_type_t type, const CefCursorInfo &custom_cursor_info) {
@@ -283,7 +345,7 @@ void BrowserHandler::OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
     }
 #endif
 
-    debug("Error loading %s: %s\n", failedUrl.ToString().c_str(), errorText.ToString().c_str());
+    Logger::getInstance()->warn("Error loading %s: %s\n", failedUrl.ToString().c_str(), errorText.ToString().c_str());
 }
 
 bool BrowserHandler::OnJSDialog(CefRefPtr<CefBrowser> browser, const CefString &origin_url, JSDialogType dialog_type, const CefString &message_text, const CefString &default_prompt_text, CefRefPtr<CefJSDialogCallback> callback, bool &suppress_message) {
@@ -294,7 +356,7 @@ bool BrowserHandler::OnJSDialog(CefRefPtr<CefBrowser> browser, const CefString &
 }
 
 bool BrowserHandler::OnFileDialog(CefRefPtr<CefBrowser> browser, FileDialogMode mode, const CefString &title, const CefString &default_file_path, const std::vector<CefString> &accept_filters, CefRefPtr<CefFileDialogCallback> callback) {
-    // debug("file dialog: %i :: %s", mode, title.ToString().c_str());
+    // Logger::getInstance()->info("file dialog: %i :: %s\n", mode, title.ToString().c_str());
     return false;
 }
 
@@ -305,7 +367,7 @@ bool BrowserHandler::OnShowPermissionPrompt(CefRefPtr<CefBrowser> browser, uint6
         return false;
     }
 
-    debug("Denied browser permissions request from %s. Requested flags=%i\n", requesting_origin.ToString().c_str(), requested_permissions);
+    Logger::getInstance()->info("Denied browser permissions request from %s. Requested flags=%i\n", requesting_origin.ToString().c_str(), requested_permissions);
     callback->Continue(CEF_PERMISSION_RESULT_DENY);
 
     return true;
@@ -359,7 +421,7 @@ cef_return_value_t BrowserHandler::OnBeforeResourceLoad(CefRefPtr<CefBrowser> br
 bool BrowserHandler::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) {
     if (frame->IsMain()) {
         std::string url = request->GetURL();
-        debug("URL: %s\n", url.c_str());
+        Logger::getInstance()->debug("URL: %s\n", url.c_str());
     }
 
     return false;

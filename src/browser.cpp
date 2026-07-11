@@ -9,6 +9,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <thread>
 #include <filesystem>
 #include <fstream>
 #include <include/base/cef_bind.h>
@@ -42,6 +43,7 @@
 
 Browser::Browser() {
     textureId = 0;
+    textureInitialized = false;
     offsetStart = 0.0f;
     offsetEnd = 0.0f;
     lastGpsUpdateTime = 0.0f;
@@ -109,6 +111,29 @@ void Browser::initialize() {
             // Intentionally return false so commands bubble up to the airplane.
             return false;
         });
+    } else if (AppState::getInstance()->aircraftVariant == VariantAirfoillabsC172) {
+        offsetStart = 0;
+        offsetEnd = 1.0f;
+
+        backButton = new Button(Path::getInstance()->pluginDirectory + (AppState::getInstance()->config.hide_addressbar ? "/assets/icons/arrow-left-circle.svg" : "/assets/icons/x-circle.svg"));
+        backButton->setPosition(backButton->relativeWidth / 2.0f + 0.01f, 1.03f);
+        backButton->setClickHandler([]() {
+            if (!AppState::getInstance()->browserVisible) {
+                return false;
+            }
+
+            if (!AppState::getInstance()->config.hide_addressbar) {
+                Dataref::getInstance()->executeCommand("AviTab/Home");
+                return true;
+            }
+
+            bool didGoBack = AppState::getInstance()->browser->goBack();
+            if (!didGoBack) {
+                Dataref::getInstance()->executeCommand("AviTab/Home");
+            }
+
+            return true;
+        });
     } else {
         offsetStart = 0;
         offsetEnd = 0.935f;
@@ -134,27 +159,11 @@ void Browser::initialize() {
         });
     }
 
+    // Only reserve the texture number here; the GL allocation happens in
+    // initializeTexture() on the first draw() call, because plugin GL is only
+    // valid inside a draw callback under the XP12 Metal renderer.
     XPLMGenerateTextureNumbers(&textureId, 1);
-    XPLMBindTexture2d(textureId, 0);
-    std::vector<unsigned char> whiteTextureData(
-        AppState::getInstance()->tabletDimensions.textureWidth *
-        AppState::getInstance()->tabletDimensions.textureHeight *
-        AppState::getInstance()->tabletDimensions.bytesPerPixel);
-    std::fill(whiteTextureData.begin(), whiteTextureData.end(), 0xFF);
-
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,       // mipmap level
-        GL_RGBA, // internal format for the GL to use.  (We could ask for a floating point tex or 16-bit tex if we were crazy!)
-        AppState::getInstance()->tabletDimensions.textureWidth,
-        AppState::getInstance()->tabletDimensions.textureHeight,
-        0,                // border size
-        GL_BGRA,          // format of color we are giving to GL
-        GL_UNSIGNED_BYTE, // encoding of our data
-        whiteTextureData.data());
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    textureInitialized = false;
 
     currentUrl = AppState::getInstance()->config.homepage;
 
@@ -182,18 +191,28 @@ void Browser::destroy() {
     if (handler && handler->browserInstance) {
         handler->browserInstance->GetHost()->CloseBrowser(true);
 
-        auto startTime = std::chrono::steady_clock::now() + std::chrono::seconds(99);
-        auto gracePeriod = std::chrono::milliseconds(500);
-        while (1) {
+        // Pump the CEF message loop so the browser can close cleanly, then give
+        // it a short grace period. A hard deadline guarantees we return even if
+        // the browser never signals closure (e.g. a hung renderer), instead of
+        // spinning the main thread and freezing the sim.
+        constexpr auto maxWait = std::chrono::seconds(3);
+        constexpr auto gracePeriod = std::chrono::milliseconds(500);
+        auto deadline = std::chrono::steady_clock::now() + maxWait;
+        auto graceEnd = std::chrono::steady_clock::time_point::max();
+        while (std::chrono::steady_clock::now() < deadline) {
             // Get some message loop reps in so the browser can properly close.
             CefDoMessageLoopWork();
 
-            if (!handler->browserInstance && startTime > std::chrono::steady_clock::now()) {
-                // The browser has closed. Start grace countdown.
-                startTime = std::chrono::steady_clock::now();
-            } else if (std::chrono::steady_clock::now() - startTime > gracePeriod) {
-                break;
+            if (!handler->browserInstance) {
+                if (graceEnd == std::chrono::steady_clock::time_point::max()) {
+                    // The browser has closed. Start the grace countdown.
+                    graceEnd = std::chrono::steady_clock::now() + gracePeriod;
+                } else if (std::chrono::steady_clock::now() >= graceEnd) {
+                    break;
+                }
             }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
         handler->destroy();
@@ -201,19 +220,21 @@ void Browser::destroy() {
 
         // Never call CefShutdown(); since this makes all further CefInitialize(); crash.
         // #if IBM
-        // debug("Cleaning up CEF instance...\n");
+        // Logger::getInstance()->info("Cleaning up CEF instance...\n");
         // CefShutdown();
         // #endif
     }
 
     if (textureId) {
-        XPLMBindTexture2d(textureId, 0);
-        glDeleteTextures(1, (GLuint *) &textureId);
+        // Deleting the texture is a GL call too; defer it to the draw callback.
+        Drawing::QueueTextureDeletion(textureId);
         textureId = 0;
+        textureInitialized = false;
     }
 
     if (backButton) {
         backButton->destroy();
+        delete backButton;
         backButton = nullptr;
     }
 }
@@ -223,6 +244,35 @@ void Browser::resetHandler() {
         handler->destroy();
         handler = nullptr;
     }
+}
+
+void Browser::initializeTexture() {
+    if (!textureId || textureInitialized) {
+        return;
+    }
+
+    XPLMBindTexture2d(textureId, 0);
+    std::vector<unsigned char> whiteTextureData(
+        AppState::getInstance()->tabletDimensions.textureWidth *
+        AppState::getInstance()->tabletDimensions.textureHeight *
+        AppState::getInstance()->tabletDimensions.bytesPerPixel);
+    std::fill(whiteTextureData.begin(), whiteTextureData.end(), 0xFF);
+
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,       // mipmap level
+        GL_RGBA, // internal format for the GL to use.  (We could ask for a floating point tex or 16-bit tex if we were crazy!)
+        AppState::getInstance()->tabletDimensions.textureWidth,
+        AppState::getInstance()->tabletDimensions.textureHeight,
+        0,                // border size
+        GL_BGRA,          // format of color we are giving to GL
+        GL_UNSIGNED_BYTE, // encoding of our data
+        whiteTextureData.data());
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    textureInitialized = true;
 }
 
 void Browser::visibilityWillChange(bool becomesVisible) {
@@ -259,9 +309,19 @@ void Browser::update() {
     }
 }
 
+// Runs inside the xplm_Phase_Gauges draw callback: the only place where this
+// plugin may touch OpenGL. All texture allocation and pixel uploads happen here.
 void Browser::draw() {
     if (!textureId) {
         return;
+    }
+
+    if (!textureInitialized) {
+        initializeTexture();
+    }
+
+    if (handler) {
+        handler->uploadPendingPaint();
     }
 
     XPLMSetGraphicsState(
@@ -275,6 +335,17 @@ void Browser::draw() {
     );
 
     XPLMBindTexture2d(textureId, 0);
+
+#if DEBUG
+    // Live-tune the image offsets via config.ini [debug] section. Edit
+    // debug_value_1 (offsetStart) / debug_value_2 (offsetEnd), then use the
+    // "Reload configuration" menu item to see the change immediately. Leave
+    // debug_value_2 at 0 to keep the per-aircraft branch values.
+    if (AppState::getInstance()->config.debug_value_2 != 0.0f) {
+        offsetStart = AppState::getInstance()->config.debug_value_1;
+        offsetEnd = AppState::getInstance()->config.debug_value_2;
+    }
+#endif
 
     const auto &tabletDimensions = AppState::getInstance()->tabletDimensions;
     int x1 = tabletDimensions.x;
@@ -299,6 +370,15 @@ void Browser::draw() {
     glEnd();
 
     if (backButton) {
+#if DEBUG
+        // Live-tune the back button Y via the shared header Y (config.ini
+        // [debug] debug_value_3, which also moves the spinner and status bar
+        // icons). Leave at 0 to keep the per-aircraft position. X stays at the
+        // branch default (button half-width + 0.01).
+        if (AppState::getInstance()->config.debug_value_3 != 0.0f) {
+            backButton->setPosition(backButton->relativeWidth / 2.0f + 0.01f, AppState::getInstance()->config.debug_value_3);
+        }
+#endif
         backButton->draw();
     }
 }
@@ -395,7 +475,7 @@ void Browser::setFocus(bool focus) {
 }
 
 void Browser::key(unsigned char key, unsigned char virtualKey, XPLMKeyFlags flags) {
-    if (!textureId || !handler) {
+    if (!textureId || !handler || !handler->browserInstance) {
         return;
     }
 
@@ -415,7 +495,7 @@ void Browser::key(unsigned char key, unsigned char virtualKey, XPLMKeyFlags flag
         int keyCode = it->second;
         keyEvent.native_key_code = keyCode;
     } else {
-        debug("Unknown key: 0x%02X VK: 0x%02X\n", key, virtualKey);
+        Logger::getInstance()->warn("Unknown key: 0x%02X VK: 0x%02X\n", key, virtualKey);
         keyEvent.native_key_code = key;
     }
     keyEvent.windows_key_code = virtualKey;
@@ -470,7 +550,7 @@ void Browser::key(unsigned char key, unsigned char virtualKey, XPLMKeyFlags flag
 }
 
 bool Browser::goBack() {
-    if (!textureId || !handler) {
+    if (!textureId || !handler || !handler->browserInstance) {
         return false;
     }
 
@@ -499,7 +579,7 @@ bool Browser::createBrowser() {
 #if XPLANE_VERSION == 12
     CefScopedLibraryLoader library_loader;
     if (!library_loader.LoadInMain()) {
-        debug("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
+        Logger::getInstance()->error("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
         return false;
     }
 #else
@@ -598,33 +678,33 @@ bool Browser::createBrowser() {
     std::string localesDir = Path::getInstance()->pluginDirectory + "/win_x64/res/locales";
     std::string helperPath = Path::getInstance()->pluginDirectory + "/win_x64/avitab_cef_helper.exe";
 
-    debug("[Windows CEF Init] Resources directory: %s\n", resourcesDir.c_str());
-    debug("[Windows CEF Init] Locales directory: %s\n", localesDir.c_str());
-    debug("[Windows CEF Init] Helper exe path: %s\n", helperPath.c_str());
+    Logger::getInstance()->info("[Windows CEF Init] Resources directory: %s\n", resourcesDir.c_str());
+    Logger::getInstance()->info("[Windows CEF Init] Locales directory: %s\n", localesDir.c_str());
+    Logger::getInstance()->info("[Windows CEF Init] Helper exe path: %s\n", helperPath.c_str());
 
     // Check if required directories and files exist
     if (!std::filesystem::exists(resourcesDir)) {
-        debug("[Windows CEF Init ERROR] Resources directory does not exist: %s\n", resourcesDir.c_str());
+        Logger::getInstance()->error("[Windows CEF Init ERROR] Resources directory does not exist: %s\n", resourcesDir.c_str());
     } else {
-        debug("[Windows CEF Init] Resources directory exists\n");
+        Logger::getInstance()->info("[Windows CEF Init] Resources directory exists\n");
     }
 
     if (!std::filesystem::exists(localesDir)) {
-        debug("[Windows CEF Init ERROR] Locales directory does not exist: %s\n", localesDir.c_str());
+        Logger::getInstance()->error("[Windows CEF Init ERROR] Locales directory does not exist: %s\n", localesDir.c_str());
     } else {
-        debug("[Windows CEF Init] Locales directory exists\n");
+        Logger::getInstance()->info("[Windows CEF Init] Locales directory exists\n");
     }
 
     if (!std::filesystem::exists(helperPath)) {
-        debug("[Windows CEF Init ERROR] Helper exe does not exist: %s\n", helperPath.c_str());
+        Logger::getInstance()->error("[Windows CEF Init ERROR] Helper exe does not exist: %s\n", helperPath.c_str());
     } else {
-        debug("[Windows CEF Init] Helper exe exists\n");
+        Logger::getInstance()->info("[Windows CEF Init] Helper exe exists\n");
         // Check if we can read the file
         std::ifstream helperCheck(helperPath);
         if (!helperCheck.is_open()) {
-            debug("[Windows CEF Init ERROR] Cannot open/read helper exe (may be a permissions issue)\n");
+            Logger::getInstance()->error("[Windows CEF Init ERROR] Cannot open/read helper exe (may be a permissions issue)\n");
         } else {
-            debug("[Windows CEF Init] Helper exe is readable\n");
+            Logger::getInstance()->info("[Windows CEF Init] Helper exe is readable\n");
             helperCheck.close();
         }
     }
@@ -640,7 +720,6 @@ bool Browser::createBrowser() {
         "d3dcompiler_47.dll",
         "libEGL.dll",
         "libGLESv2.dll",
-        "libcurl-x64.dll",
         "vk_swiftshader.dll",
         "vulkan-1.dll"};
 
@@ -649,35 +728,34 @@ bool Browser::createBrowser() {
         "icudtl.dat",
         "snapshot_blob.bin",
         "v8_context_snapshot.bin",
-        "curl-ca-bundle.crt",
         "vk_swiftshader_icd.json"};
 
-    debug("[Windows CEF Init] Checking critical files from dist_extra_11...\n");
+    Logger::getInstance()->info("[Windows CEF Init] Checking critical files from dist_extra_11...\n");
     bool allCriticalFilesExist = true;
 
     for (const auto &file : criticalFiles) {
         std::string filePath = winX64Dir + "/" + file;
         if (!std::filesystem::exists(filePath)) {
-            debug("[Windows CEF Init ERROR] Critical file missing: %s\n", filePath.c_str());
+            Logger::getInstance()->error("[Windows CEF Init ERROR] Critical file missing: %s\n", filePath.c_str());
             allCriticalFilesExist = false;
         } else {
-            debug("[Windows CEF Init] Found: %s\n", file.c_str());
+            Logger::getInstance()->info("[Windows CEF Init] Found: %s\n", file.c_str());
         }
     }
 
     for (const auto &file : dataFiles) {
         std::string filePath = winX64Dir + "/" + file;
         if (!std::filesystem::exists(filePath)) {
-            debug("[Windows CEF Init ERROR] Required data file missing: %s\n", filePath.c_str());
+            Logger::getInstance()->error("[Windows CEF Init ERROR] Required data file missing: %s\n", filePath.c_str());
             allCriticalFilesExist = false;
         } else {
-            debug("[Windows CEF Init] Found: %s\n", file.c_str());
+            Logger::getInstance()->info("[Windows CEF Init] Found: %s\n", file.c_str());
         }
     }
 
     if (!allCriticalFilesExist) {
-        debug("[Windows CEF Init WARNING] Some files from dist_extra_11 are missing. Plugin may not work correctly.\n");
-        debug("[Windows CEF Init WARNING] Ensure all files from lib/win_x64/dist_extra_11/ are copied to <plugin>/win_x64/\n");
+        Logger::getInstance()->warn("[Windows CEF Init WARNING] Some files from dist_extra_11 are missing. Plugin may not work correctly.\n");
+        Logger::getInstance()->warn("[Windows CEF Init WARNING] Ensure all files from lib/win_x64/dist_extra_11/ are copied to <plugin>/win_x64/\n");
     }
 
     CefString(&settings.resources_dir_path) = resourcesDir;
@@ -695,7 +773,7 @@ bool Browser::createBrowser() {
     CefMainArgs main_args;
 #endif
 
-    debug("Initializing a new CEF instance for X-Plane 11...\n");
+    Logger::getInstance()->info("Initializing a new CEF instance for X-Plane 11...\n");
 
 #if IBM
     // Clear any previous Windows errors before initialization
@@ -703,7 +781,7 @@ bool Browser::createBrowser() {
 #endif
 
     if (!CefInitialize(main_args, settings, app, nullptr)) {
-        debug("[CEF Init ERROR] Could not initialize CEF instance.\n");
+        Logger::getInstance()->error("[CEF Init ERROR] Could not initialize CEF instance.\n");
 
 #if IBM
         DWORD lastError = GetLastError();
@@ -717,17 +795,17 @@ bool Browser::createBrowser() {
                 errorBuffer,
                 sizeof(errorBuffer) - 1,
                 nullptr);
-            debug("[Windows Error 127 Details] Error Code: %lu (0x%lX)\n", lastError, lastError);
-            debug("[Windows Error 127 Details] Error Message: %s\n", errorBuffer);
+            Logger::getInstance()->error("[Windows Error 127 Details] Error Code: %lu (0x%lX)\n", lastError, lastError);
+            Logger::getInstance()->error("[Windows Error 127 Details] Error Message: %s\n", errorBuffer);
         } else {
-            debug("[Windows Error 127 Details] GetLastError() returned 0 - this suggests CEF library loading failed\n");
+            Logger::getInstance()->error("[Windows Error 127 Details] GetLastError() returned 0 - this suggests CEF library loading failed\n");
         }
 
         // Additional diagnostics
-        debug("[Windows Error 127 Diagnostics] Checking critical CEF components...\n");
+        Logger::getInstance()->info("[Windows Error 127 Diagnostics] Checking critical CEF components...\n");
         HMODULE libcef = LoadLibraryA((Path::getInstance()->pluginDirectory + "/win_x64/libcef.dll").c_str());
         if (libcef) {
-            debug("[Windows Error 127 Diagnostics] libcef.dll loaded successfully\n");
+            Logger::getInstance()->info("[Windows Error 127 Diagnostics] libcef.dll loaded successfully\n");
             FreeLibrary(libcef);
         } else {
             DWORD libcefError = GetLastError();
@@ -740,13 +818,13 @@ bool Browser::createBrowser() {
                 libcefErrorBuffer,
                 sizeof(libcefErrorBuffer) - 1,
                 nullptr);
-            debug("[Windows Error 127 Diagnostics] libcef.dll failed to load: %s (Error: %lu)\n", libcefErrorBuffer, libcefError);
+            Logger::getInstance()->error("[Windows Error 127 Diagnostics] libcef.dll failed to load: %s (Error: %lu)\n", libcefErrorBuffer, libcefError);
         }
 #endif
 
         return false;
     }
-    debug("CEF instance for X-Plane 11 has been set up successfully.\n");
+    Logger::getInstance()->info("CEF instance for X-Plane 11 has been set up successfully.\n");
 #endif
 
     handler = CefRefPtr<BrowserHandler>(new BrowserHandler(textureId, &currentUrl, AppState::getInstance()->tabletDimensions.browserWidth, AppState::getInstance()->tabletDimensions.browserHeight));

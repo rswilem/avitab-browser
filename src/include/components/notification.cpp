@@ -39,13 +39,25 @@ Notification::Notification(std::string aTitle, std::string body) {
     std::ifstream file(Path::getInstance()->pluginDirectory + "/assets/notify.pcm", std::ios::binary | std::ios::ate);
     if (file) {
         file.seekg(0, std::ios::beg);
-        std::vector<char> buffer((std::istreambuf_iterator<char>(file)),
-                                  std::istreambuf_iterator<char>());
+        // XPLMPlayPCMOnBus does not copy the buffer; it must stay valid until
+        // playback completes. Own it on the heap and free it from the completion
+        // callback, which fires when the channel finishes or is stopped.
+        auto *pcmBuffer = new std::vector<char>((std::istreambuf_iterator<char>(file)),
+                                                 std::istreambuf_iterator<char>());
         file.close();
 
-        FMOD_CHANNEL *sound = XPLMPlayPCMOnBus(buffer.data(), (unsigned int)buffer.size(), FMOD_SOUND_FORMAT_PCM16, 22050, 1, 0, xplm_AudioInterior, nullptr, nullptr);
+        FMOD_CHANNEL *sound = XPLMPlayPCMOnBus(
+            pcmBuffer->data(), (unsigned int) pcmBuffer->size(),
+            FMOD_SOUND_FORMAT_PCM16, 22050, 1, 0, xplm_AudioInterior,
+            [](void *refcon, FMOD_RESULT) {
+                delete static_cast<std::vector<char> *>(refcon);
+            },
+            pcmBuffer);
+
         if (sound) {
             XPLMSetAudioVolume(sound, 0.3f);
+        } else {
+            delete pcmBuffer;
         }
     }
 #endif
@@ -54,6 +66,8 @@ Notification::Notification(std::string aTitle, std::string body) {
 void Notification::destroy() {
     if (dismissButton) {
         dismissButton->destroy();
+        delete dismissButton;
+        dismissButton = nullptr;
     }
 }
 

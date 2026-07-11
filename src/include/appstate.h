@@ -36,9 +36,11 @@ struct AppConfiguration {
     };
     std::vector<StatusBarIcon> statusbarIcons;
 #if DEBUG
-    float debug_value_1;
-    float debug_value_2;
-    float debug_value_3;
+    float debug_value_1; // browser offsetStart
+    float debug_value_2; // browser offsetEnd
+    float debug_value_3; // Y of spinner + back button + status bar icons + active tab name
+    float debug_value_4; // main menu ("Browser") button X
+    float debug_value_5; // main menu ("Browser") button Y
 #endif
 };
 
@@ -49,6 +51,7 @@ enum AircraftVariant: unsigned char {
     VariantLevelUp737,
     VariantJustFlight,
     VariantIXEG737,
+    VariantAirfoillabsC172,
 };
 
 typedef std::function<void()> CallbackFunc;
@@ -63,11 +66,14 @@ private:
     AppState();
     ~AppState();
     static AppState* instance;
-    std::string remoteVersion;
     bool shouldBrowserVisible;
     std::vector<DelayedTask> tasks;
     std::vector<Button *> buttons;
     Notification *notification;
+    // Notifications awaiting teardown. A notification's dismiss button deletes
+    // it from inside its own click callback, so the actual destroy+delete is
+    // deferred to the next update() where no button list is being iterated.
+    std::vector<Notification *> notificationsPendingDeletion;
     Button *mainMenuButton;
     bool loadAvitabConfig();
     bool fileExists(std::string filename);
@@ -90,8 +96,7 @@ public:
     static AppState* getInstance();
     bool initialize();
     void deinitialize();
-    void checkLatestVersion();
-    
+
     void update();
     void draw();
     

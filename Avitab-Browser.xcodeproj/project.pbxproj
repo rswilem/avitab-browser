@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 55;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -31,7 +31,6 @@
 		F64CFE6B2D2C31E8009BE82B /* dataref.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6AF9EBC2D06F84900530297 /* dataref.cpp */; };
 		F64CFE6C2D2C31E8009BE82B /* browser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F66F916C2D0333A400F84283 /* browser.cpp */; };
 		F64CFE702D2C31E8009BE82B /* libcef_dll_wrapper.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F62DB14B2D26A5180048FCC6 /* libcef_dll_wrapper.a */; };
-		F64CFE712D2C31E8009BE82B /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F6A0452C2D25E33700A0FFA3 /* libcurl.tbd */; platformFilters = (maccatalyst, macos, ); };
 		F64CFE722D2C31E8009BE82B /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F691E46C2D0338E90000666C /* CoreFoundation.framework */; };
 		F64CFE732D2C31E8009BE82B /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F691E46E2D0338F10000666C /* OpenGL.framework */; };
 		F64CFE742D2C31E8009BE82B /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6AF9EC52D078DB000530297 /* Cocoa.framework */; };
@@ -39,7 +38,6 @@
 		F6602C0F2D0C8B2B00204B65 /* browser_handler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6602C0B2D0C8B2B00204B65 /* browser_handler.cpp */; };
 		F691E46D2D0338E90000666C /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F691E46C2D0338E90000666C /* CoreFoundation.framework */; };
 		F691E46F2D0338F10000666C /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F691E46E2D0338F10000666C /* OpenGL.framework */; };
-		F6A0452D2D25E34E00A0FFA3 /* libcurl.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F6A0452C2D25E33700A0FFA3 /* libcurl.tbd */; platformFilters = (maccatalyst, macos, ); };
 		F6AF9EC02D06F84900530297 /* path.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6AF9EBE2D06F84900530297 /* path.cpp */; };
 		F6AF9EC12D06F84900530297 /* dataref.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6AF9EBC2D06F84900530297 /* dataref.cpp */; };
 		F6AF9EC62D078DB000530297 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6AF9EC52D078DB000530297 /* Cocoa.framework */; };
@@ -103,6 +101,7 @@
 		F6D247CC2D2FC64200C55144 /* cursor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cursor.h; sourceTree = "<group>"; };
 		F6EB77682D21FFF2000B96F3 /* notification.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = notification.h; sourceTree = "<group>"; };
 		F6EB77692D21FFF2000B96F3 /* notification.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = notification.cpp; sourceTree = "<group>"; };
+		F6F48B463001341A0034F9BE /* logger.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = logger.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,7 +110,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F62DB14C2D26A5290048FCC6 /* libcef_dll_wrapper.a in Frameworks */,
-				F6A0452D2D25E34E00A0FFA3 /* libcurl.tbd in Frameworks */,
 				F691E46D2D0338E90000666C /* CoreFoundation.framework in Frameworks */,
 				F6C242FB2F17AA0100B42F05 /* XPLM.framework in Frameworks */,
 				F6C242FC2F17AA0100B42F05 /* XPWidgets.framework in Frameworks */,
@@ -125,7 +123,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F64CFE702D2C31E8009BE82B /* libcef_dll_wrapper.a in Frameworks */,
-				F64CFE712D2C31E8009BE82B /* libcurl.tbd in Frameworks */,
 				F64CFE722D2C31E8009BE82B /* CoreFoundation.framework in Frameworks */,
 				F6C242F92F17AA0100B42F05 /* XPLM.framework in Frameworks */,
 				F6C242FA2F17AA0100B42F05 /* XPWidgets.framework in Frameworks */,
@@ -177,6 +174,7 @@
 				F63C142F2D12CB7B00932475 /* nanosvg */,
 				F63C14232D12C63E00932475 /* ini */,
 				F6602C172D0E04BB00204B65 /* unix_keycodes.h */,
+				F6F48B463001341A0034F9BE /* logger.hpp */,
 			);
 			path = lib;
 			sourceTree = "<group>";

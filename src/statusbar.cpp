@@ -10,6 +10,7 @@
 
 Statusbar::Statusbar() {
     x = 0.0f;
+    statusbarY = 0.967f;
     loading = false;
     activeTabTitle = "";
     activeTabButton = nullptr;
@@ -20,38 +21,50 @@ Statusbar::Statusbar() {
 void Statusbar::initialize() {
     spinnerImage = new Image(Path::getInstance()->pluginDirectory + "/assets/spinner.png");
     
+    float spinnerX;
     if (AppState::getInstance()->aircraftVariant == VariantZibo738) {
-        spinnerImage->setPosition(0.875f, 1.0f);
+        spinnerX = 0.875f;
         x = 0.79f;
+        statusbarY = 1.0f;
     }
     else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
-        spinnerImage->setPosition(0.88f, 1.092f);
+        spinnerX = 0.88f;
         x = 0.7f;
+        statusbarY = 1.092f;
     }
     else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
-        spinnerImage->setPosition(0.88f, 1.025f);
+        spinnerX = 0.88f;
         x = 0.78f;
+        statusbarY = 1.025f;
+    }
+    else if (AppState::getInstance()->aircraftVariant == VariantAirfoillabsC172) {
+        spinnerX = 0.54f;
+        x = 0.9f;
+        statusbarY = 1.03f;
     }
     else {
-        spinnerImage->setPosition(0.54f, 0.967f);
+        spinnerX = 0.54f;
         x = 0.9f;
+        statusbarY = 0.967f;
     }
-    
+
+#if DEBUG
+    // Live-tune the shared header Y (loading spinner, back button, status bar
+    // icons and active tab name) via config.ini [debug] debug_value_3. Leave at
+    // 0 to keep the per-aircraft position. Applied on "Reload configuration"
+    // (statusbar is re-initialized).
+    if (AppState::getInstance()->config.debug_value_3 != 0.0f) {
+        statusbarY = AppState::getInstance()->config.debug_value_3;
+    }
+#endif
+
+    // The spinner shares the status bar Y so it tracks the same header row.
+    spinnerImage->setPosition(spinnerX, statusbarY);
+
     for (const auto& icon : AppState::getInstance()->config.statusbarIcons) {
         Button *button = new Button(Path::getInstance()->pluginDirectory + "/assets/icons/" + icon.icon + ".svg");
-        
-        if (AppState::getInstance()->aircraftVariant == VariantZibo738) {
-            button->setPosition(x, 1.0f);
-        }
-        else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
-            button->setPosition(x, 1.092f);
-        }
-        else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
-            button->setPosition(x, 1.025f);
-        }
-        else {
-            button->setPosition(x, 0.967f);
-        }
+
+        button->setPosition(x, statusbarY);
         button->setClickHandler([&icon]() { AppState::getInstance()->showBrowser(icon.url); return true; });
         statusbarButtons.push_back(button);
         x -= button->relativeWidth + 0.005f;
@@ -74,17 +87,29 @@ void Statusbar::initialize() {
 void Statusbar::destroy() {
     if (spinnerImage) {
         spinnerImage->destroy();
+        delete spinnerImage;
         spinnerImage = nullptr;
     }
-    
+
     for (const auto& button : statusbarButtons) {
         button->destroy();
+        delete button;
     }
     statusbarButtons.clear();
-    
+
     if (homeButton) {
         homeButton->destroy();
+        delete homeButton;
+        homeButton = nullptr;
     }
+
+    if (activeTabButton) {
+        activeTabButton->destroy();
+        delete activeTabButton;
+        activeTabButton = nullptr;
+    }
+
+    activeTabTitle = "";
 }
 
 void Statusbar::update() {
@@ -115,16 +140,7 @@ void Statusbar::draw() {
     );
     
     if (!activeTabTitle.empty()) {
-        float y = 0.967f;
-        if (AppState::getInstance()->aircraftVariant == VariantZibo738) {
-            y = 1.0f;
-        }
-        else if (AppState::getInstance()->aircraftVariant == VariantFelis742) {
-            y = 1.092f;
-        }
-        else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
-            y = 1.025f;
-        }
+        float y = statusbarY;
         activeTabButton->setPosition(x - (activeTabButton->relativeWidth / 2.0f) - 0.005f, y);
         
         set_brightness(AppState::getInstance()->brightness * 0.2f);
@@ -146,8 +162,10 @@ void Statusbar::setActiveTab(std::string title) {
     
     if (activeTabButton) {
         activeTabButton->destroy();
+        delete activeTabButton;
+        activeTabButton = nullptr;
     }
-    
+
     if (!activeTabTitle.empty()) {
         float textWidth = Drawing::TextWidth(activeTabTitle) + 0.02f;
         activeTabButton = new Button(textWidth, 0.03f);
@@ -156,9 +174,5 @@ void Statusbar::setActiveTab(std::string title) {
             return true;
         });
     }
-    else {
-        activeTabButton = nullptr;
-    }
-    
 }
 

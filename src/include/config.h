@@ -11,17 +11,10 @@
 #endif
 
 #define set_brightness(value) glColor4f(value, value, value, 1.0f)
-#define debug(format, ...)                                                           \
-    {                                                                                \
-        char buffer[1024];                                                           \
-        snprintf(buffer, sizeof(buffer), "[avitab-browser] " format, ##__VA_ARGS__); \
-        XPLMDebugString(buffer);                                                     \
-    }
 
 #define PRODUCT_NAME "avitab-browser"
 #define FRIENDLY_NAME "AviTab Browser"
 #define VERSION "1.0.8"
-#define VERSION_CHECK_URL "https://api.github.com/repos/rswilem/avitab-browser/releases?per_page=1&page=1"
 #define ALL_PLUGINS_DIRECTORY "/Resources/plugins/"
 #define PLUGIN_DIRECTORY (ALL_PLUGINS_DIRECTORY PRODUCT_NAME)
 #define BUNDLE_ID "com.ramonster." PRODUCT_NAME
@@ -33,3 +26,5 @@
 
 #define REFRESH_INTERVAL_SECONDS_FAST 0.1
 #define REFRESH_INTERVAL_SECONDS_SLOW 2.0
+
+#include "logger.hpp"

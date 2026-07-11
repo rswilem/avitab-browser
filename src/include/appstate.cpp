@@ -7,10 +7,8 @@
 #include "path.h"
 
 #include <cmath>
-#include <curl/curl.h>
 #include <fstream>
 #include <iostream>
-#include <regex>
 #include <XPLMGraphics.h>
 #include <XPLMProcessing.h>
 #include <XPLMUtilities.h>
@@ -18,10 +16,10 @@
 AppState *AppState::instance = nullptr;
 
 AppState::AppState() {
-    remoteVersion = "";
     shouldBrowserVisible = false;
     notification = nullptr;
     mainMenuButton = nullptr;
+    mainWindow = nullptr;
     aircraftVariant = VariantUnknown;
     pluginInitialized = false;
     shouldCaptureClickEvents = false;
@@ -87,6 +85,9 @@ bool AppState::initialize() {
         //        mainMenuButton->setPosition(0.775, 0.615);
         mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
         mainMenuButton->setPosition(0.2f, 0.568f);
+    } else if (aircraftVariant == VariantAirfoillabsC172) {
+        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
+        mainMenuButton->setPosition(0.2f, 0.63f);
     } else {
         mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
         mainMenuButton->setPosition(0.2f, 0.568f);
@@ -129,69 +130,65 @@ void AppState::deinitialize() {
     Dataref::getInstance()->destroyAllBindings();
 
     tasks.clear();
+
+    if (notification) {
+        notification->destroy();
+        delete notification;
+        notification = nullptr;
+    }
+    for (Notification *pending : notificationsPendingDeletion) {
+        pending->destroy();
+        delete pending;
+    }
+    notificationsPendingDeletion.clear();
+
+    if (browser) {
+        browser->visibilityWillChange(false);
+        browserVisible = false;
+        browser->destroy();
+        delete browser;
+        browser = nullptr;
+    }
+
+    if (statusbar) {
+        statusbar->destroy();
+        delete statusbar;
+        statusbar = nullptr;
+    }
+
+    if (mainMenuButton) {
+        mainMenuButton->destroy();
+        delete mainMenuButton;
+        mainMenuButton = nullptr;
+    }
+
+    if (mainWindow) {
+        XPLMDestroyWindow(mainWindow);
+        mainWindow = nullptr;
+    }
+
+    // All owned buttons have unregistered themselves during the deletes above.
     buttons.clear();
-    notification = nullptr;
-    browser->visibilityWillChange(false);
-    browserVisible = false;
-    browser->destroy();
-    browser = nullptr;
-    statusbar->destroy();
-    statusbar = nullptr;
+
     pluginInitialized = false;
     shouldCaptureClickEvents = false;
-    instance = nullptr;
-}
-
-void AppState::checkLatestVersion() {
-    if (!remoteVersion.empty()) {
-        // Version information was already fetched. Only check once per session.
-        return;
-    }
-
-    std::string response;
-    CURL *curl = curl_easy_init();
-    curl_easy_setopt(curl, CURLOPT_URL, VERSION_CHECK_URL);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void *contents, size_t size, size_t nmemb, std::string *userp) {
-        userp->append((char *) contents, size * nmemb);
-        return size * nmemb;
-    });
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0");
-    CURLcode status = curl_easy_perform(curl);
-    if (status != CURLE_OK) {
-        debug("Version fetch failed: %s\n", curl_easy_strerror(status));
-    }
-    curl_easy_cleanup(curl);
-
-    try {
-        std::string tag = nlohmann::json::parse(response)[0]["tag_name"];
-        if (tag.starts_with("v")) {
-            tag = tag.substr(1);
-        }
-
-        remoteVersion = tag;
-        std::string cleanedRemote = std::regex_replace(tag, std::regex("[^0-9]"), "");
-        std::string cleanedLocal = std::regex_replace(VERSION, std::regex("[^0-9]"), "");
-        int remoteVersionNumber = std::stoi(cleanedRemote);
-        int localVersionNumber = std::stoi(cleanedLocal);
-        if (remoteVersionNumber > localVersionNumber) {
-            debug("There is a newer version of the plugin available. Current: %s, latest: %s\n", VERSION, tag.c_str());
-            std::string description = "There is an update available for the " + std::string(FRIENDLY_NAME) + " plugin.\n\nVersion " + tag + ".\n";
-            showNotification(new Notification("Update available", description));
-        }
-    } catch (const std::exception &e) {
-        debug("Could not fetch latest version information from GitHub. Reason: %s\n", e.what());
-        // Assume we're on the latest version to prevent refetching
-        remoteVersion = VERSION;
-    }
+    // The singleton persists for the process lifetime and is reused on the next
+    // aircraft load; previously it was orphaned here, leaking the whole tree.
 }
 
 void AppState::update() {
     if (!browser) {
         return;
     }
+
+    // Tear down notifications that were dismissed since the last frame. Doing
+    // it here (rather than inside the dismiss callback) avoids deleting a button
+    // while its own click handler is still on the stack.
+    for (Notification *pending : notificationsPendingDeletion) {
+        pending->destroy();
+        delete pending;
+    }
+    notificationsPendingDeletion.clear();
 
     bool canBrowserVisible = false;
     if (aircraftVariant == VariantZibo738 || aircraftVariant == VariantLevelUp737) {
@@ -243,7 +240,6 @@ void AppState::update() {
         browser->visibilityWillChange(true);
         browserVisible = true;
         shouldBrowserVisible = false;
-        checkLatestVersion();
     }
 
     if (notification) {
@@ -293,6 +289,14 @@ void AppState::draw() {
     }
 
     set_brightness(brightness);
+#if DEBUG
+    // Live-tune the main menu ("Browser") button position via config.ini
+    // [debug]: debug_value_4 (X) / debug_value_5 (Y). Leave debug_value_5 at 0
+    // to keep the per-aircraft position.
+    if (config.debug_value_5 != 0.0f) {
+        mainMenuButton->setPosition(config.debug_value_4, config.debug_value_5);
+    }
+#endif
     mainMenuButton->draw();
     statusbar->draw();
 
@@ -358,8 +362,10 @@ void AppState::hideBrowser() {
 }
 
 void AppState::showNotification(Notification *aNotification) {
-    if (notification && !aNotification) {
-        notification->destroy();
+    if (notification) {
+        // Defer teardown: this may be called from the current notification's own
+        // dismiss-button callback, so the button cannot be deleted synchronously.
+        notificationsPendingDeletion.push_back(notification);
     }
 
     notification = aNotification;
@@ -377,7 +383,7 @@ bool AppState::loadConfig(bool isReloading) {
 
     std::string filename = Path::getInstance()->pluginDirectory + "/config.ini";
     if (isReloading) {
-        debug("Reloading configuration at %s...\n", filename.c_str());
+        Logger::getInstance()->info("Reloading configuration at %s...\n", filename.c_str());
     }
 
     if (!fileExists(filename)) {
@@ -430,15 +436,15 @@ url_5=
         if (fileOutputHandle.is_open()) {
             fileOutputHandle << defaultConfig;
             fileOutputHandle.close();
-            debug("Default config file written to %s\n", filename.c_str());
+            Logger::getInstance()->info("Default config file written to %s\n", filename.c_str());
         } else {
-            debug("Failed to write default config file at %s\n", filename.c_str());
+            Logger::getInstance()->error("Failed to write default config file at %s\n", filename.c_str());
         }
     }
 
     INIReader reader(filename);
     if (reader.ParseError() != 0) {
-        debug("Could not read config file at path %s, file is malformed.\n", filename.c_str());
+        Logger::getInstance()->error("Could not read config file at path %s, file is malformed.\n", filename.c_str());
         return false;
     }
 
@@ -457,6 +463,8 @@ url_5=
     config.debug_value_1 = reader.GetReal("debug", "debug_value_1", 0.0f);
     config.debug_value_2 = reader.GetReal("debug", "debug_value_2", 0.0f);
     config.debug_value_3 = reader.GetReal("debug", "debug_value_3", 0.0f);
+    config.debug_value_4 = reader.GetReal("debug", "debug_value_4", 0.0f);
+    config.debug_value_5 = reader.GetReal("debug", "debug_value_5", 0.0f);
     config.statusbarIcons.push_back({"terminal", "__DEBUG__"});
 #endif
 
@@ -470,12 +478,12 @@ url_5=
     }
 
     if (!loadAvitabConfig()) {
-        debug("Could not find AviTab.json config file in aircraft directory, or the JSON file is malformed. Not loading the plugin for this aircraft.\n");
+        Logger::getInstance()->warn("Could not find AviTab.json config file in aircraft directory, or the JSON file is malformed. Not loading the plugin for this aircraft.\n");
         return false;
     }
 
     if (isReloading) {
-        debug("Config file has been reloaded.\n");
+        Logger::getInstance()->info("Config file has been reloaded.\n");
         statusbar->destroy();
         statusbar->initialize();
 
@@ -515,7 +523,7 @@ bool AppState::loadAvitabConfig() {
     try {
         data = nlohmann::json::parse(fileHandle);
     } catch (const nlohmann::json::parse_error &e) {
-        debug("There was an error parsing the AviTab.json file:\n%s\n", e.what());
+        Logger::getInstance()->error("There was an error parsing the AviTab.json file:\n%s\n", e.what());
 
         // Be graceful and try to find the first '{' and last '}', then parse again.
         std::stringstream buffer;
@@ -527,12 +535,12 @@ bool AppState::loadAvitabConfig() {
         auto start = content.find('{');
         auto end = content.rfind('}');
         if (start != std::string::npos && end != std::string::npos && end > start) {
-            debug("Retry parsing the AviTab.json file...\n");
+            Logger::getInstance()->warn("Retry parsing the AviTab.json file...\n");
             try {
                 data = nlohmann::json::parse(content.substr(start, end - start + 1));
-                debug("Parsed AviTab.json gracefully and succeeded.\n");
+                Logger::getInstance()->info("Parsed AviTab.json gracefully and succeeded.\n");
             } catch (const nlohmann::json::parse_error &nested_e) {
-                debug("Retried parsing and failed again:\n%s\n", e.what());
+                Logger::getInstance()->error("Retried parsing and failed again:\n%s\n", e.what());
             }
         }
     }
@@ -568,9 +576,9 @@ bool AppState::loadAvitabConfig() {
     tabletDimensions.browserWidth = ceil(tabletDimensions.width * multiplier);
     tabletDimensions.browserHeight = ceil(tabletDimensions.height * multiplier);
 
-    debug("Found AviTab.json config (%ipx x %ipx)\n", tabletDimensions.width, tabletDimensions.height);
+    Logger::getInstance()->info("Found AviTab.json config (%ipx x %ipx)\n", tabletDimensions.width, tabletDimensions.height);
     if (tabletDimensions.browserWidth > tabletDimensions.width) {
-        debug("AviTab.json resolution was smaller than %ipx, using upscaled browser. (%ipx x %ipx)\n", config.minimum_width, tabletDimensions.browserWidth, tabletDimensions.browserHeight);
+        Logger::getInstance()->info("AviTab.json resolution was smaller than %ipx, using upscaled browser. (%ipx x %ipx)\n", config.minimum_width, tabletDimensions.browserWidth, tabletDimensions.browserHeight);
     }
 
     return true;
@@ -617,6 +625,11 @@ void AppState::determineAircraftVariant() {
     std::string ixegTextFile = Path::getInstance()->aircraftDirectory + "/IXEG_user_prefs.txt";
     if (std::filesystem::exists(ixegTextFile)) {
         aircraftVariant = VariantIXEG737;
+        return;
+    }
+
+    if (Path::getInstance()->aircraftFilename.starts_with("C172_NG")) {
+        aircraftVariant = VariantAirfoillabsC172;
         return;
     }
 

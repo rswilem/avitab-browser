@@ -6,6 +6,31 @@
 #include <algorithm>
 #include <cmath>
 
+std::mutex Drawing::textureDeletionMutex;
+std::vector<int> Drawing::texturesPendingDeletion;
+
+void Drawing::QueueTextureDeletion(int textureId) {
+    if (!textureId) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(textureDeletionMutex);
+    texturesPendingDeletion.push_back(textureId);
+}
+
+void Drawing::DeleteQueuedTextures() {
+    std::vector<int> textures;
+    {
+        std::lock_guard<std::mutex> lock(textureDeletionMutex);
+        std::swap(textures, texturesPendingDeletion);
+    }
+
+    for (int textureId : textures) {
+        GLuint glTextureId = (GLuint) textureId;
+        glDeleteTextures(1, &glTextureId);
+    }
+}
+
 float Drawing::AbsoluteX(float normalizedX) {
     return AppState::getInstance()->tabletDimensions.x + AppState::getInstance()->tabletDimensions.width * normalizedX;
 }

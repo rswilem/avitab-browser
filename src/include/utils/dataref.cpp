@@ -3,6 +3,8 @@
 #include "appstate.h"
 #include "config.h"
 
+#include <utility>
+#include <vector>
 #include <XPLMDisplay.h>
 #include <XPLMUtilities.h>
 
@@ -238,21 +240,28 @@ void Dataref::unbind(const char *ref) {
 }
 
 void Dataref::update() {
+    // Collect changes first, then fire callbacks. A change callback can call
+    // set() on a new dataref, which inserts into cachedValues and would rehash
+    // the map mid-iteration, invalidating the iterator. Updating existing values
+    // in-place (below) never rehashes, so the first pass is safe.
+    std::vector<std::pair<std::string, DataRefValueType>> changes;
     for (auto &[key, data] : cachedValues) {
         std::visit([&](auto &&value) {
             using T = std::decay_t<decltype(value)>;
             T newValue = get<T>(key.c_str());
-            bool didChange = value != newValue;
-            cachedValues[key] = newValue;
-
-            if (didChange) {
-                auto it = boundRefs.find(key);
-                if (it != boundRefs.end()) {
-                    boundRefs[key].changeCallback(cachedValues[key]);
-                }
+            if (value != newValue) {
+                changes.emplace_back(key, newValue);
+                value = newValue;
             }
         },
             data);
+    }
+
+    for (auto &[key, newValue] : changes) {
+        auto it = boundRefs.find(key);
+        if (it != boundRefs.end() && it->second.changeCallback) {
+            it->second.changeCallback(newValue);
+        }
     }
 }
 

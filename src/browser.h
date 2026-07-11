@@ -11,6 +11,7 @@
 class Browser {
     private:
         int textureId;
+        bool textureInitialized;
         float offsetStart;
         float offsetEnd;
         float lastGpsUpdateTime;
@@ -18,6 +19,7 @@ class Browser {
         CefRefPtr<BrowserHandler> handler;
         bool leftMouseButtonDown;
         bool createBrowser();
+        void initializeTexture();
         void updateGPSLocation();
         CefMouseEvent getMouseEvent(float normalizedX, float normalizedY);
 

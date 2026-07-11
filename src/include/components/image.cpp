@@ -1,6 +1,7 @@
 #include "image.h"
 #include "config.h"
 #include "appstate.h"
+#include "drawing.h"
 #include <fstream>
 #include <XPLMGraphics.h>
 #include <XPLMUtilities.h>
@@ -15,7 +16,9 @@ Image::Image(std::string filename) {
     rotationDegrees = 0;
     visible = true;
     textureId = 0;
-    
+    decodedWidth = 0;
+    decodedHeight = 0;
+
     if (filename.empty()) {
         return;
     }
@@ -44,18 +47,17 @@ Image::Image(std::string filename) {
     }
     
     if (error) {
-        debug("Could not load image (code %i): %s\n", error, filename.c_str());
+        Logger::getInstance()->warn("Could not load image (code %i): %s\n", error, filename.c_str());
         return;
     }
 
     if (data) {
-        XPLMGenerateTextureNumbers(&textureId, 1);
-        XPLMBindTexture2d(textureId, 0);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, pixelsWidth, pixelsHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Keep the pixels around; the texture is created on the first draw()
+        // call, inside a draw callback where plugin GL is valid. Capture the
+        // dimensions now, before SCALE_IMAGES overwrites them below.
+        decodedWidth = pixelsWidth;
+        decodedHeight = pixelsHeight;
+        pendingPixels.assign(data, data + (size_t) decodedWidth * decodedHeight * 4);
         free(data);
     }
     
@@ -71,13 +73,29 @@ Image::Image(std::string filename) {
 }
 
 void Image::destroy() {
+    pendingPixels.clear();
+
     if (textureId) {
-        XPLMBindTexture2d(textureId, 0);
-        glDeleteTextures(1, (GLuint *)&textureId);
+        Drawing::QueueTextureDeletion(textureId);
         textureId = 0;
     }
 }
 
+void Image::createTexture() {
+    if (textureId || pendingPixels.empty()) {
+        return;
+    }
+
+    XPLMGenerateTextureNumbers(&textureId, 1);
+    XPLMBindTexture2d(textureId, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, decodedWidth, decodedHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, pendingPixels.data());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    pendingPixels.clear();
+    pendingPixels.shrink_to_fit();
+}
 
 void Image::draw(unsigned short aRotationDegrees) {
     rotationDegrees = aRotationDegrees;
@@ -85,10 +103,18 @@ void Image::draw(unsigned short aRotationDegrees) {
 }
 
 void Image::draw() {
-    if (!textureId || !visible) {
+    if (!visible) {
         return;
     }
-    
+
+    if (!textureId) {
+        createTexture();
+    }
+
+    if (!textureId) {
+        return;
+    }
+
     XPLMSetGraphicsState(
                          0, // No fog, equivalent to glDisable(GL_FOG);
                          1, // One texture, equivalent to glEnable(GL_TEXTURE_2D);

@@ -4,6 +4,7 @@ SDK_301/
 lib/mac_x64/
 lib/lin_x64/
 lib/win_x64/
+lib_old/
 build/
 
 CMakeLists.txt.user

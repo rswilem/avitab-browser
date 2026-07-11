@@ -9,6 +9,7 @@
 class Statusbar {
 private:
     float x;
+    float statusbarY;
     std::string activeTabTitle;
     Button *activeTabButton;
     Image *spinnerImage;
