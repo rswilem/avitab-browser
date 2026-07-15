@@ -579,7 +579,7 @@ bool Browser::createBrowser() {
 #if XPLANE_VERSION == 12
     CefScopedLibraryLoader library_loader;
     if (!library_loader.LoadInMain()) {
-        Logger::getInstance()->error("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
+        Logger::getInstance()->critical("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
         return false;
     }
 #else
@@ -684,25 +684,25 @@ bool Browser::createBrowser() {
 
     // Check if required directories and files exist
     if (!std::filesystem::exists(resourcesDir)) {
-        Logger::getInstance()->error("[Windows CEF Init ERROR] Resources directory does not exist: %s\n", resourcesDir.c_str());
+        Logger::getInstance()->critical("[Windows CEF Init ERROR] Resources directory does not exist: %s\n", resourcesDir.c_str());
     } else {
         Logger::getInstance()->info("[Windows CEF Init] Resources directory exists\n");
     }
 
     if (!std::filesystem::exists(localesDir)) {
-        Logger::getInstance()->error("[Windows CEF Init ERROR] Locales directory does not exist: %s\n", localesDir.c_str());
+        Logger::getInstance()->critical("[Windows CEF Init ERROR] Locales directory does not exist: %s\n", localesDir.c_str());
     } else {
         Logger::getInstance()->info("[Windows CEF Init] Locales directory exists\n");
     }
 
     if (!std::filesystem::exists(helperPath)) {
-        Logger::getInstance()->error("[Windows CEF Init ERROR] Helper exe does not exist: %s\n", helperPath.c_str());
+        Logger::getInstance()->critical("[Windows CEF Init ERROR] Helper exe does not exist: %s\n", helperPath.c_str());
     } else {
         Logger::getInstance()->info("[Windows CEF Init] Helper exe exists\n");
         // Check if we can read the file
         std::ifstream helperCheck(helperPath);
         if (!helperCheck.is_open()) {
-            Logger::getInstance()->error("[Windows CEF Init ERROR] Cannot open/read helper exe (may be a permissions issue)\n");
+            Logger::getInstance()->critical("[Windows CEF Init ERROR] Cannot open/read helper exe (may be a permissions issue)\n");
         } else {
             Logger::getInstance()->info("[Windows CEF Init] Helper exe is readable\n");
             helperCheck.close();
@@ -736,7 +736,7 @@ bool Browser::createBrowser() {
     for (const auto &file : criticalFiles) {
         std::string filePath = winX64Dir + "/" + file;
         if (!std::filesystem::exists(filePath)) {
-            Logger::getInstance()->error("[Windows CEF Init ERROR] Critical file missing: %s\n", filePath.c_str());
+            Logger::getInstance()->critical("[Windows CEF Init ERROR] Critical file missing: %s\n", filePath.c_str());
             allCriticalFilesExist = false;
         } else {
             Logger::getInstance()->info("[Windows CEF Init] Found: %s\n", file.c_str());
@@ -746,7 +746,7 @@ bool Browser::createBrowser() {
     for (const auto &file : dataFiles) {
         std::string filePath = winX64Dir + "/" + file;
         if (!std::filesystem::exists(filePath)) {
-            Logger::getInstance()->error("[Windows CEF Init ERROR] Required data file missing: %s\n", filePath.c_str());
+            Logger::getInstance()->critical("[Windows CEF Init ERROR] Required data file missing: %s\n", filePath.c_str());
             allCriticalFilesExist = false;
         } else {
             Logger::getInstance()->info("[Windows CEF Init] Found: %s\n", file.c_str());
@@ -781,7 +781,7 @@ bool Browser::createBrowser() {
 #endif
 
     if (!CefInitialize(main_args, settings, app, nullptr)) {
-        Logger::getInstance()->error("[CEF Init ERROR] Could not initialize CEF instance.\n");
+        Logger::getInstance()->critical("[CEF Init ERROR] Could not initialize CEF instance.\n");
 
 #if IBM
         DWORD lastError = GetLastError();
@@ -795,10 +795,10 @@ bool Browser::createBrowser() {
                 errorBuffer,
                 sizeof(errorBuffer) - 1,
                 nullptr);
-            Logger::getInstance()->error("[Windows Error 127 Details] Error Code: %lu (0x%lX)\n", lastError, lastError);
-            Logger::getInstance()->error("[Windows Error 127 Details] Error Message: %s\n", errorBuffer);
+            Logger::getInstance()->critical("[Windows Error 127 Details] Error Code: %lu (0x%lX)\n", lastError, lastError);
+            Logger::getInstance()->critical("[Windows Error 127 Details] Error Message: %s\n", errorBuffer);
         } else {
-            Logger::getInstance()->error("[Windows Error 127 Details] GetLastError() returned 0 - this suggests CEF library loading failed\n");
+            Logger::getInstance()->critical("[Windows Error 127 Details] GetLastError() returned 0 - this suggests CEF library loading failed\n");
         }
 
         // Additional diagnostics
@@ -818,7 +818,7 @@ bool Browser::createBrowser() {
                 libcefErrorBuffer,
                 sizeof(libcefErrorBuffer) - 1,
                 nullptr);
-            Logger::getInstance()->error("[Windows Error 127 Diagnostics] libcef.dll failed to load: %s (Error: %lu)\n", libcefErrorBuffer, libcefError);
+            Logger::getInstance()->critical("[Windows Error 127 Diagnostics] libcef.dll failed to load: %s (Error: %lu)\n", libcefErrorBuffer, libcefError);
         }
 #endif
 

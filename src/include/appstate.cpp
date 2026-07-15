@@ -438,13 +438,13 @@ url_5=
             fileOutputHandle.close();
             Logger::getInstance()->info("Default config file written to %s\n", filename.c_str());
         } else {
-            Logger::getInstance()->error("Failed to write default config file at %s\n", filename.c_str());
+            Logger::getInstance()->critical("Failed to write default config file at %s\n", filename.c_str());
         }
     }
 
     INIReader reader(filename);
     if (reader.ParseError() != 0) {
-        Logger::getInstance()->error("Could not read config file at path %s, file is malformed.\n", filename.c_str());
+        Logger::getInstance()->critical("Could not read config file at path %s, file is malformed.\n", filename.c_str());
         return false;
     }
 
@@ -523,7 +523,7 @@ bool AppState::loadAvitabConfig() {
     try {
         data = nlohmann::json::parse(fileHandle);
     } catch (const nlohmann::json::parse_error &e) {
-        Logger::getInstance()->error("There was an error parsing the AviTab.json file:\n%s\n", e.what());
+        Logger::getInstance()->critical("There was an error parsing the AviTab.json file:\n%s\n", e.what());
 
         // Be graceful and try to find the first '{' and last '}', then parse again.
         std::stringstream buffer;
@@ -540,7 +540,7 @@ bool AppState::loadAvitabConfig() {
                 data = nlohmann::json::parse(content.substr(start, end - start + 1));
                 Logger::getInstance()->info("Parsed AviTab.json gracefully and succeeded.\n");
             } catch (const nlohmann::json::parse_error &nested_e) {
-                Logger::getInstance()->error("Retried parsing and failed again:\n%s\n", e.what());
+                Logger::getInstance()->critical("Retried parsing and failed again:\n%s\n", e.what());
             }
         }
     }

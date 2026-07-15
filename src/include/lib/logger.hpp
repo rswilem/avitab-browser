@@ -15,19 +15,11 @@
 #define PRODUCT_NAME "unknown"
 #endif
 
-// On Windows, <windows.h> (pulled in transitively via config.h before this
-// header) defines ERROR as a macro from wingdi.h, which would mangle the
-// LogLevel::ERROR enumerator. Suppress it for this header only and restore it
-// at the end, so any Windows code including us afterwards is unaffected. This
-// is a no-op where ERROR is not defined.
-#pragma push_macro("ERROR")
-#undef ERROR
-
 enum class LogLevel {
     VERBOSE = 0,
     INFO = 1,
     WARN = 2,
-    ERROR = 3,
+    CRITICAL = 3,
 };
 
 // Thread-safe logger. X-Plane requires XPLMDebugString to be called from the
@@ -86,22 +78,22 @@ class Logger {
             va_end(args);
         }
 
-        void error(const char *format, ...) {
+        void critical(const char *format, ...) {
             va_list args;
             va_start(args, format);
-            log(LogLevel::ERROR, format, args);
+            log(LogLevel::CRITICAL, format, args);
             va_end(args);
         }
 
         void logForce(const char *format, ...) {
             va_list args;
             va_start(args, format);
-            logInternal(LogLevel::ERROR, format, args, true);
+            logInternal(LogLevel::CRITICAL, format, args, true);
             va_end(args);
         }
 
     private:
-        Logger() : currentLogLevel(LogLevel::VERBOSE), initialized(false) {}
+        Logger() : currentLogLevel(LogLevel::INFO), initialized(false) {}
 
         ~Logger() = default;
         Logger(const Logger &) = delete;
@@ -127,7 +119,7 @@ class Logger {
                 case LogLevel::WARN:
                     levelStr = "Warning";
                     break;
-                case LogLevel::ERROR:
+                case LogLevel::CRITICAL:
                     levelStr = "Error";
                     break;
             }
@@ -180,7 +172,5 @@ class Logger {
         std::atomic<bool> initialized;
         std::atomic<LogLevel> currentLogLevel;
 };
-
-#pragma pop_macro("ERROR")
 
 #endif
