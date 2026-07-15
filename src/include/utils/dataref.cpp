@@ -3,6 +3,7 @@
 #include "appstate.h"
 #include "config.h"
 
+#include <cmath>
 #include <utility>
 #include <vector>
 #include <XPLMDisplay.h>
@@ -21,7 +22,13 @@ Dataref::Dataref() {
     lastMouseY = 0.0f;
     lastWindowX = 0;
     lastWindowY = 0;
-    lastViewHeading = 0;
+    hasValidSample = false;
+    lastHeadPsi = 0.0f;
+    lastHeadThe = 0.0f;
+    lastHeadX = 0.0f;
+    lastHeadY = 0.0f;
+    lastHeadZ = 0.0f;
+    lastFov = 0.0f;
 }
 
 Dataref::~Dataref() {
@@ -265,26 +272,78 @@ void Dataref::update() {
     }
 }
 
+bool Dataref::cameraMoved(float headPsi, float headThe, float headX, float headY, float headZ, float fov, int viewType) {
+    // Anything other than the 3D cockpit (1026) can't anchor the tablet.
+    if (viewType != 1026) {
+        return true;
+    }
+
+    // Wrap-safe angular deltas so the 0/360 boundary doesn't false-trigger.
+    float dPsi = fabsf(fmodf(headPsi - lastHeadPsi + 540.0f, 360.0f) - 180.0f);
+    float dThe = fabsf(fmodf(headThe - lastHeadThe + 540.0f, 360.0f) - 180.0f);
+    if (dPsi > VIEW_ROTATION_DEADBAND_DEG || dThe > VIEW_ROTATION_DEADBAND_DEG) {
+        return true;
+    }
+
+    if (fabsf(headX - lastHeadX) > VIEW_TRANSLATION_DEADBAND_M ||
+        fabsf(headY - lastHeadY) > VIEW_TRANSLATION_DEADBAND_M ||
+        fabsf(headZ - lastHeadZ) > VIEW_TRANSLATION_DEADBAND_M) {
+        return true;
+    }
+
+    if (fabsf(fov - lastFov) > VIEW_FOV_DEADBAND_DEG) {
+        return true;
+    }
+
+    return false;
+}
+
 bool Dataref::getMouse(float *normalizedX, float *normalizedY, float windowX, float windowY) {
     float mouseX = get<float>("sim/graphics/view/click_3d_x_pixels");
     float mouseY = get<float>("sim/graphics/view/click_3d_y_pixels");
-    int viewHeading = (int) get<float>("sim/graphics/view/view_heading");
+
+    bool extrapolated = false;
 
     if (windowX > 0) {
+        float headPsi = get<float>("sim/graphics/view/pilots_head_psi");
+        float headThe = get<float>("sim/graphics/view/pilots_head_the");
+        float headX = get<float>("sim/graphics/view/pilots_head_x");
+        float headY = get<float>("sim/graphics/view/pilots_head_y");
+        float headZ = get<float>("sim/graphics/view/pilots_head_z");
+        float fov = get<float>("sim/graphics/view/field_of_view_deg");
+        int viewType = get<int>("sim/graphics/view/view_type");
+        bool moved = cameraMoved(headPsi, headThe, headX, headY, headZ, fov, viewType);
+
         if (mouseX < 0 || mouseY < 0) {
-            if (abs(viewHeading - lastViewHeading) > 5) {
+            // The 3D click position is unavailable (some tablets report this too
+            // early). Keep the interaction alive by extrapolating from the last
+            // valid sample, but only while the camera hasn't moved.
+            if (!hasValidSample || moved) {
+                hasValidSample = false;
                 return false;
             }
             mouseX = lastMouseX + (windowX - lastWindowX) / 1.5;
             mouseY = lastMouseY + (windowY - lastWindowY) / 1.5;
-        } else if (abs(viewHeading - lastViewHeading) > 5 && mouseX == lastMouseX && mouseY == lastMouseY) {
+            extrapolated = true;
+        } else if (moved && mouseX == lastMouseX && mouseY == lastMouseY) {
+            // Coordinates identical to the stored ones after a view change are a
+            // stale read, not a real position. Not gated on hasValidSample: the
+            // stored pose only updates below, so this stays latched until X-Plane
+            // reports different coordinates.
+            hasValidSample = false;
             return false;
         } else {
             lastMouseX = mouseX;
             lastMouseY = mouseY;
             lastWindowX = windowX;
             lastWindowY = windowY;
-            lastViewHeading = viewHeading;
+            lastHeadPsi = headPsi;
+            lastHeadThe = headThe;
+            lastHeadX = headX;
+            lastHeadY = headY;
+            lastHeadZ = headZ;
+            lastFov = fov;
+            hasValidSample = true;
         }
     }
 
@@ -295,7 +354,15 @@ bool Dataref::getMouse(float *normalizedX, float *normalizedY, float windowX, fl
     *normalizedX = (mouseX - AppState::getInstance()->tabletDimensions.x) / AppState::getInstance()->tabletDimensions.width;
     *normalizedY = (mouseY - AppState::getInstance()->tabletDimensions.y) / AppState::getInstance()->tabletDimensions.height;
 
-    return !(*normalizedX < -0.1f || *normalizedX > 1.1f || *normalizedY < -0.1f || *normalizedY > 1.1f);
+    bool inBounds = !(*normalizedX < -0.1f || *normalizedX > 1.1f || *normalizedY < -0.1f || *normalizedY > 1.1f);
+
+    // Once an extrapolated position leaves the tablet, drop the anchor so
+    // extrapolation can't resume until a real click_3d sample arrives.
+    if (extrapolated && !inBounds) {
+        hasValidSample = false;
+    }
+
+    return inBounds;
 }
 
 XPLMDataRef Dataref::findRef(const char *ref) {

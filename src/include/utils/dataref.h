@@ -38,7 +38,14 @@ private:
     float lastMouseY;
     int lastWindowX;
     int lastWindowY;
-    int lastViewHeading;
+    bool hasValidSample;
+    float lastHeadPsi;
+    float lastHeadThe;
+    float lastHeadX;
+    float lastHeadY;
+    float lastHeadZ;
+    float lastFov;
+    bool cameraMoved(float headPsi, float headThe, float headX, float headY, float headZ, float fov, int viewType);
     
 public:
     static Dataref* getInstance();
