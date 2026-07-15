@@ -292,13 +292,20 @@ void Browser::visibilityWillChange(bool becomesVisible) {
     lastGpsUpdateTime = becomesVisible ? XPLMGetElapsedTime() : 0.0f;
 }
 
-void Browser::update() {
-    if (!textureId) {
+// Pumps the CEF message loop. Called once per sim frame while the browser is
+// visible; deliberately never called while hidden, so the browser costs no CPU
+// in the background.
+void Browser::pump() {
+    if (!textureId || !handler || !AppState::getInstance()->browserVisible) {
         return;
     }
 
-    if (handler && AppState::getInstance()->browserVisible) {
-        CefDoMessageLoopWork();
+    CefDoMessageLoopWork();
+}
+
+void Browser::update() {
+    if (!textureId) {
+        return;
     }
 
     if (backButton) {

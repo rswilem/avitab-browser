@@ -35,6 +35,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params);
 int draw(XPLMDrawingPhase inPhase, int inIsBefore, void * inRefcon);
 float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
+float pumpBrowser(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 int mouseClicked(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus status, void* inRefcon);
 void menuAction(void* mRef, void* iRef);
 void registerWindow();
@@ -63,6 +64,7 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     XPLMAppendMenuItem(id, "About", (void *)"ActionAbout", 0);
 
     XPLMRegisterFlightLoopCallback(update, REFRESH_INTERVAL_SECONDS_SLOW, nullptr);
+    XPLMRegisterFlightLoopCallback(pumpBrowser, REFRESH_INTERVAL_SECONDS_FAST, nullptr);
     XPLMRegisterDrawCallback(draw, xplm_Phase_Gauges, 0, nullptr);
     
     XPluginReceiveMessage(0, XPLM_MSG_PLANE_LOADED, nullptr);
@@ -90,6 +92,7 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
 
 PLUGIN_API void XPluginStop(void) {
     XPLMUnregisterDrawCallback(draw, xplm_Phase_Gauges, 0, nullptr);
+    XPLMUnregisterFlightLoopCallback(pumpBrowser, nullptr);
     XPLMUnregisterFlightLoopCallback(update, nullptr);
     if (AppState::getInstance()->mainWindow) {
         XPLMDestroyWindow(AppState::getInstance()->mainWindow);
@@ -367,12 +370,31 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
         }
     }
 
+    return REFRESH_INTERVAL_SECONDS_FAST;
+}
+
+// Drives the CEF message loop once per sim frame while the browser is visible,
+// so paint and input latency track the sim framerate instead of the fixed 0.1s
+// update interval. On a fast machine the browser reaches its configured
+// windowless_frame_rate; on a slow machine (10fps or less) this fires no more
+// often than the old timer did, so it adds no load where none can be spared.
+// While the browser is hidden or the plugin is inactive nothing is pumped and
+// the callback just idles at the fast polling interval.
+float pumpBrowser(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon) {
+    if (!AppState::getInstance()->pluginInitialized || !AppState::getInstance()->browserVisible) {
+        return REFRESH_INTERVAL_SECONDS_FAST;
+    }
+
+    AppState::getInstance()->browser->pump();
+
+    // Mouse moves ride the same per-frame cadence; at 10Hz hover and drag felt
+    // steppy.
     float mouseX, mouseY;
     if (Dataref::getInstance()->getMouse(&mouseX, &mouseY)) {
         AppState::getInstance()->browser->mouseMove(mouseX, mouseY);
     }
-    
-    return REFRESH_INTERVAL_SECONDS_FAST;
+
+    return -1.0f;
 }
 
 int draw(XPLMDrawingPhase inPhase, int inIsBefore, void * inRefcon) {

@@ -32,6 +32,7 @@ class Browser {
         void initialize();
         void destroy();
         void visibilityWillChange(bool becomesVisible);
+        void pump();
         void update();
         void draw();
         void loadUrl(std::string url);
