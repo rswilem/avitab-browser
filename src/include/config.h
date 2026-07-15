@@ -14,7 +14,7 @@
 
 #define PRODUCT_NAME "avitab-browser"
 #define FRIENDLY_NAME "AviTab Browser"
-#define VERSION "1.0.9"
+#define VERSION "1.1.0"
 #define ALL_PLUGINS_DIRECTORY "/Resources/plugins/"
 #define PLUGIN_DIRECTORY (ALL_PLUGINS_DIRECTORY PRODUCT_NAME)
 #define BUNDLE_ID "com.ramonster." PRODUCT_NAME
@@ -26,5 +26,15 @@
 
 #define REFRESH_INTERVAL_SECONDS_FAST 0.1
 #define REFRESH_INTERVAL_SECONDS_SLOW 2.0
+
+// Mouse-anchor invalidation thresholds (see Dataref::getMouse). A cached tablet
+// click sample is treated as stale once the pilot's head view moves by more than
+// these amounts. Rotation is wide to tolerate head-shake / bounce camera plugins;
+// translation is tight because any real zoom-to-tablet moves the head well over
+// 10cm. Raise VIEW_FOV_DEADBAND_DEG (or set it very high to disable) if a camera
+// plugin animates field of view for g-force/speed effects.
+#define VIEW_ROTATION_DEADBAND_DEG 12.0f
+#define VIEW_TRANSLATION_DEADBAND_M 0.08f
+#define VIEW_FOV_DEADBAND_DEG 5.0f
 
 #include "logger.hpp"
