@@ -66,8 +66,7 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     XPLMRegisterDrawCallback(draw, xplm_Phase_Gauges, 0, nullptr);
     
     XPluginReceiveMessage(0, XPLM_MSG_PLANE_LOADED, nullptr);
-    
-    captureVrChanges();
+
     initializeCursor();
     
     Logger::getInstance()->info("Plugin started (version %s)\n", VERSION);
@@ -129,9 +128,15 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params)
                 return;
             }
 
-            if (AppState::getInstance()->initialize()) {                
+            if (AppState::getInstance()->initialize()) {
                 registerWindow();
                 captureClickEvents(true);
+
+                // Re-register the VR monitor on every aircraft load:
+                // deinitialize() destroys all dataref bindings on unload, which
+                // would otherwise leave VR switching (and VR clicks) dead after
+                // the first aircraft change.
+                captureVrChanges();
             }
             break;
             

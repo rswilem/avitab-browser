@@ -19,6 +19,7 @@ class Browser {
         CefRefPtr<BrowserHandler> handler;
         bool leftMouseButtonDown;
         bool createBrowser();
+        bool initializeCef(const std::string &cachePath);
         void initializeTexture();
         void updateGPSLocation();
         CefMouseEvent getMouseEvent(float normalizedX, float normalizedY);
@@ -30,7 +31,6 @@ class Browser {
 
         void initialize();
         void destroy();
-        void resetHandler();
         void visibilityWillChange(bool becomesVisible);
         void update();
         void draw();

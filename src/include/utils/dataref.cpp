@@ -3,7 +3,9 @@
 #include "appstate.h"
 #include "config.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <utility>
 #include <vector>
 #include <XPLMDisplay.h>
@@ -154,9 +156,22 @@ void Dataref::createDataref(const char *ref, T *value, bool writable, DatarefSho
             nullptr, nullptr,                                                                     // Int array
             nullptr, nullptr,                                                                     // Float array
             [](void *inRefcon, void *outValue, int inOffset, int inMaxLength) -> int {
-                T value = *static_cast<T *>(inRefcon);
-                strncpy(static_cast<char *>(outValue), value.c_str(), inMaxLength);
-                return static_cast<int>(value.length());
+                T *value = static_cast<T *>(inRefcon);
+                int length = static_cast<int>(value->length());
+
+                // XPLM convention: a null buffer queries the total size. Tools
+                // like DataRefTool (and our own get<std::string>) rely on this.
+                if (outValue == nullptr) {
+                    return length;
+                }
+
+                if (inOffset >= length || inMaxLength <= 0) {
+                    return 0;
+                }
+
+                int copyLength = std::min(inMaxLength, length - inOffset);
+                memcpy(outValue, value->c_str() + inOffset, (size_t) copyLength);
+                return copyLength;
             },
             [](void *inRefcon, void *inValue, int inOffset, int inMaxLength) {
                 BoundRef *info = static_cast<BoundRef *>(inRefcon);
@@ -220,7 +235,10 @@ void Dataref::monitorExistingDataref(const char *ref, DatarefMonitorChangedCallb
 
 void Dataref::destroyAllBindings() {
     for (auto &[key, ref] : boundRefs) {
-        XPLMUnregisterDataAccessor(ref.handle);
+        // Monitors registered via monitorExistingDataref have no accessor handle.
+        if (ref.handle) {
+            XPLMUnregisterDataAccessor(ref.handle);
+        }
     }
     boundRefs.clear();
 
@@ -228,6 +246,13 @@ void Dataref::destroyAllBindings() {
         XPLMUnregisterCommandHandler(ref.handle, handleCommandCallback, 1, nullptr);
     }
     boundCommands.clear();
+
+    // Handles to aircraft-provided datarefs die with the aircraft plugin, and
+    // cached values from the previous aircraft must not survive into the next
+    // one. Without this, update() also keeps polling the old aircraft's refs
+    // forever and both maps grow on every aircraft switch.
+    refs.clear();
+    cachedValues.clear();
 }
 
 void Dataref::unbind(const char *ref) {
@@ -411,6 +436,7 @@ T Dataref::getCached(const char *ref) {
 }
 
 template float Dataref::get<float>(const char *ref);
+template double Dataref::get<double>(const char *ref);
 template int Dataref::get<int>(const char *ref);
 template bool Dataref::get<bool>(const char *ref);
 template std::vector<int> Dataref::get<std::vector<int>>(const char *ref);
@@ -435,6 +461,8 @@ T Dataref::get(const char *ref) {
         return XPLMGetDatai(handle) > 0;
     } else if constexpr (std::is_same<T, float>::value) {
         return XPLMGetDataf(handle);
+    } else if constexpr (std::is_same<T, double>::value) {
+        return XPLMGetDatad(handle);
     } else if constexpr (std::is_same<T, std::vector<int>>::value) {
         int size = XPLMGetDatavi(handle, nullptr, 0, 0);
         std::vector<int> outValues(size);
@@ -442,9 +470,20 @@ T Dataref::get(const char *ref) {
         return outValues;
     } else if constexpr (std::is_same<T, std::string>::value) {
         int size = XPLMGetDatab(handle, nullptr, 0, 0);
-        char str[size];
-        XPLMGetDatab(handle, &str, 0, size);
-        return std::string(str);
+        if (size <= 0) {
+            return "";
+        }
+
+        std::vector<char> buffer(size);
+        int length = XPLMGetDatab(handle, buffer.data(), 0, size);
+        if (length <= 0) {
+            return "";
+        }
+
+        // The data is not guaranteed to be null-terminated; conversely, a
+        // provider that does terminate should not leave a trailing '\0'.
+        length = std::min(length, size);
+        return std::string(buffer.data(), strnlen(buffer.data(), length));
     }
 
     if constexpr (std::is_same<T, std::string>::value) {

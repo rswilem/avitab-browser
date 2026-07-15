@@ -98,7 +98,7 @@ void Browser::initialize() {
         offsetStart = -0.11f;
         offsetEnd = 1.06f;
 
-        backButton = backButton = new Button(0.27f, 0.05);
+        backButton = new Button(0.27f, 0.05f);
         backButton->setPosition(0.5f, 1.092f);
         backButton->setClickHandler([]() {
             if (!AppState::getInstance()->browserVisible) {
@@ -215,14 +215,20 @@ void Browser::destroy() {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
-        handler->destroy();
-        handler = nullptr;
-
         // Never call CefShutdown(); since this makes all further CefInitialize(); crash.
         // #if IBM
         // Logger::getInstance()->info("Cleaning up CEF instance...\n");
         // CefShutdown();
         // #endif
+    }
+
+    // Always release the handler, even when the browser instance was already
+    // gone (e.g. a page called window.close). Leaving it set makes the next
+    // initialize() bail out early while the texture below is discarded, which
+    // ends in a permanently blank browser until the aircraft is reloaded.
+    if (handler) {
+        handler->destroy();
+        handler = nullptr;
     }
 
     if (textureId) {
@@ -236,13 +242,6 @@ void Browser::destroy() {
         backButton->destroy();
         delete backButton;
         backButton = nullptr;
-    }
-}
-
-void Browser::resetHandler() {
-    if (handler) {
-        handler->destroy();
-        handler = nullptr;
     }
 }
 
@@ -269,8 +268,10 @@ void Browser::initializeTexture() {
         GL_UNSIGNED_BYTE, // encoding of our data
         whiteTextureData.data());
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // The texture is virtually never sampled 1:1 (3D cockpit projection, VR,
+    // minimum_width upscaling), so linear filtering renders visibly better.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     textureInitialized = true;
 }
@@ -577,13 +578,21 @@ bool Browser::createBrowser() {
 
 #if APL
 #if XPLANE_VERSION == 12
-    CefScopedLibraryLoader library_loader;
-    if (!library_loader.LoadInMain()) {
+    // CefScopedLibraryLoader unloads the framework from its destructor, and
+    // createBrowser() runs again whenever the handler was reset. Keep the
+    // loader alive for the process lifetime and load exactly once.
+    static CefScopedLibraryLoader library_loader;
+    static bool cefLibraryLoaded = library_loader.LoadInMain();
+    if (!cefLibraryLoaded) {
         Logger::getInstance()->critical("Could not load CEF library dylib (CefScopedLibraryLoader)!\n");
         return false;
     }
 #else
-    cef_load_library((Path::getInstance()->pluginDirectory + "/mac_x64/Chromium Embedded Framework.framework/Chromium Embedded Framework").c_str());
+    static bool cefLibraryLoaded = cef_load_library((Path::getInstance()->pluginDirectory + "/mac_x64/Chromium Embedded Framework.framework/Chromium Embedded Framework").c_str());
+    if (!cefLibraryLoaded) {
+        Logger::getInstance()->critical("Could not load CEF library dylib!\n");
+        return false;
+    }
 #endif
 #endif
 
@@ -664,7 +673,41 @@ bool Browser::createBrowser() {
     browser_settings.windowless_frame_rate = AppState::getInstance()->config.framerate;
     browser_settings.background_color = CefColorSetARGB(0xFF, 0xFF, 0xFF, 0xFF);
 
+    if (!initializeCef(cachePath)) {
+        return false;
+    }
+
+    handler = CefRefPtr<BrowserHandler>(new BrowserHandler(textureId, &currentUrl, AppState::getInstance()->tabletDimensions.browserWidth, AppState::getInstance()->tabletDimensions.browserHeight));
+
+    CefWindowInfo window_info;
+#if LIN
+    window_info.SetAsWindowless(0);
+#else
+    window_info.SetAsWindowless(nullptr);
+#endif
+    //window_info.shared_texture_enabled
+    window_info.windowless_rendering_enabled = true;
+
+    bool browserCreated = CefBrowserHost::CreateBrowser(window_info, handler, currentUrl, browser_settings, nullptr, request_context);
+    if (!browserCreated) {
+        AppState::getInstance()->showNotification(new Notification("Error creating browser", "An error occured while starting the browser.\nPlease verify if there are any updates for the " FRIENDLY_NAME " plugin and try again."));
+    }
+
+    return true;
+}
+
+// CefInitialize() may only be called once per process; a second call fails and
+// would leave the browser permanently unavailable. createBrowser() runs again
+// whenever the handler was reset (e.g. a page called window.close), so the
+// one-time process setup lives behind a static guard here. Only X-Plane 11
+// needs this: X-Plane 12 initializes CEF itself.
+bool Browser::initializeCef(const std::string &cachePath) {
 #if XPLANE_VERSION == 11
+    static bool cefInitialized = false;
+    if (cefInitialized) {
+        return true;
+    }
+
     // CEF is not automatically loaded when starting X-Plane 11. Initialize CEF.
     CefRefPtr<CefApp> app;
     CefSettings settings;
@@ -825,23 +868,8 @@ bool Browser::createBrowser() {
         return false;
     }
     Logger::getInstance()->info("CEF instance for X-Plane 11 has been set up successfully.\n");
+    cefInitialized = true;
 #endif
-
-    handler = CefRefPtr<BrowserHandler>(new BrowserHandler(textureId, &currentUrl, AppState::getInstance()->tabletDimensions.browserWidth, AppState::getInstance()->tabletDimensions.browserHeight));
-
-    CefWindowInfo window_info;
-#if LIN
-    window_info.SetAsWindowless(0);
-#else
-    window_info.SetAsWindowless(nullptr);
-#endif
-    //window_info.shared_texture_enabled
-    window_info.windowless_rendering_enabled = true;
-
-    bool browserCreated = CefBrowserHost::CreateBrowser(window_info, handler, currentUrl, browser_settings, nullptr, request_context);
-    if (!browserCreated) {
-        AppState::getInstance()->showNotification(new Notification("Error creating browser", "An error occured while starting the browser.\nPlease verify if there are any updates for the " FRIENDLY_NAME " plugin and try again."));
-    }
 
     return true;
 }
@@ -851,10 +879,13 @@ void Browser::updateGPSLocation() {
         return;
     }
 
-    float latitude = Dataref::getInstance()->get<float>("sim/flightmodel/position/latitude");
-    float longitude = Dataref::getInstance()->get<float>("sim/flightmodel/position/longitude");
+    // Latitude, longitude and elevation are double datarefs; reading them as
+    // float quantizes the position by roughly a meter while we format six
+    // decimals below.
+    double latitude = Dataref::getInstance()->get<double>("sim/flightmodel/position/latitude");
+    double longitude = Dataref::getInstance()->get<double>("sim/flightmodel/position/longitude");
     float speedMetersSecond = Dataref::getInstance()->get<float>("sim/flightmodel/position/groundspeed");
-    float altitudeMetersAboveSeaLevel = Dataref::getInstance()->get<float>("sim/flightmodel/position/elevation");
+    double altitudeMetersAboveSeaLevel = Dataref::getInstance()->get<double>("sim/flightmodel/position/elevation");
     float magneticHeading = Dataref::getInstance()->get<float>("sim/flightmodel/position/mag_psi");
 
     float windDirection = Dataref::getInstance()->get<float>("sim/weather/wind_direction_degt");

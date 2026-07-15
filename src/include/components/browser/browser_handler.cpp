@@ -98,6 +98,9 @@ void BrowserHandler::OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) {
         browser->GetHost()->Invalidate(PET_POPUP);
     } else {
         needsFullDraw = true;
+        // The framebuffer still shows the popup; force a view repaint so it
+        // clears immediately instead of lingering until the page next paints.
+        browser->GetHost()->Invalidate(PET_VIEW);
     }
 }
 
@@ -440,7 +443,16 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
 void BrowserHandler::overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser) {
     std::string userAgent = AppState::getInstance()->config.user_agent;
 
+    // This script is injected twice per navigation (OnDocumentAvailableInMainFrame
+    // and OnLoadEnd). Re-applying the overrides is harmless, but the synthetic
+    // 'load' event must fire at most once, and only when the overrides arrived
+    // after the document already finished loading (so late-initialized pages
+    // re-run their setup against the overridden APIs). Unconditionally
+    // re-dispatching it made pages double-fire their load handlers, duplicating
+    // timers and requests.
     std::string javascript =
+        "var avitab_should_refire_load = !window.avitab_overrides_installed && document.readyState === 'complete';"
+        "window.avitab_overrides_installed = true;"
         "function setUserAgent(window, userAgent) {"
         "    try {"
         "        var userAgentProp = Object.getOwnPropertyDescriptor(navigator, 'userAgent');"
@@ -484,7 +496,7 @@ void BrowserHandler::overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> brows
         "};"
         "setUserAgent(window, \"" +
         userAgent + "\");"
-                    "window.dispatchEvent(new Event('load'));";
+                    "if (avitab_should_refire_load) { window.dispatchEvent(new Event('load')); }";
 
     browser->GetMainFrame()->ExecuteJavaScript(javascript.c_str(), browser->GetMainFrame()->GetURL(), 0);
 }
@@ -627,7 +639,7 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             document.body.insertBefore(toolbar, document.body.firstChild);
 
             // Add some spacing so the page content isn't hidden behind the toolbar
-            const elements = [document.body, $('ytd-masthead')];
+            const elements = [document.body, document.querySelector('ytd-masthead')];
             for (const elem of elements) {
                 if (!elem) {
                     continue;
