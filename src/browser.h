@@ -18,6 +18,8 @@ class Browser {
         Button *backButton;
         CefRefPtr<BrowserHandler> handler;
         bool leftMouseButtonDown;
+        int lastMouseMoveX;
+        int lastMouseMoveY;
         bool createBrowser();
         bool initializeCef(const std::string &cachePath);
         void initializeTexture();

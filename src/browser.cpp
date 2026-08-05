@@ -51,6 +51,8 @@ Browser::Browser() {
     handler = nullptr;
     currentUrl = "";
     leftMouseButtonDown = false;
+    lastMouseMoveX = -1;
+    lastMouseMoveY = -1;
 }
 
 void Browser::initialize() {
@@ -287,6 +289,18 @@ void Browser::visibilityWillChange(bool becomesVisible) {
         if (!handler) {
             createBrowser();
         }
+
+        // A fresh browser knows nothing about the cursor, so forget the cached
+        // pixel and let the next frame deliver a position.
+        lastMouseMoveX = -1;
+        lastMouseMoveY = -1;
+
+        // Re-assert visibility on an existing browser too. Deliberately never
+        // paired with WasHidden(true): hiding stops OnPaint, and not pumping the
+        // message loop already keeps a hidden browser at zero cost.
+        if (handler) {
+            handler->notifyVisible();
+        }
     }
 
     lastGpsUpdateTime = becomesVisible ? XPLMGetElapsedTime() : 0.0f;
@@ -401,6 +415,22 @@ void Browser::mouseMove(float normalizedX, float normalizedY) {
     }
 
     CefMouseEvent mouseEvent = getMouseEvent(normalizedX, normalizedY);
+
+    // This runs once per sim frame, so without a filter a motionless mouse still
+    // injects 60 mousemoves per second. The coordinates come from a 3D raycast
+    // (click_3d_*_pixels) which jitters sub-pixel with every head movement, so
+    // they are never bit-identical and the renderer coalesces nothing. Pages
+    // that hit-test on pointermove (a map hovering thousands of features) then
+    // saturate their main thread, and because Blink queues wheel and mousemove
+    // together as rAF-aligned input, scroll events end up seconds behind. Only
+    // send when the event actually lands on a different pixel.
+    if (mouseEvent.x == lastMouseMoveX && mouseEvent.y == lastMouseMoveY) {
+        return;
+    }
+
+    lastMouseMoveX = mouseEvent.x;
+    lastMouseMoveY = mouseEvent.y;
+
     if (leftMouseButtonDown) {
         mouseEvent.modifiers |= EVENTFLAG_LEFT_MOUSE_BUTTON;
     }
@@ -428,6 +458,11 @@ bool Browser::click(XPLMMouseStatus status, float normalizedX, float normalizedY
         // Yes, we already send this event in mouseMove(). Adding the line below makes it more responsive.
         mouseEvent.modifiers |= EVENTFLAG_LEFT_MOUSE_BUTTON;
         handler->browserInstance->GetHost()->SendMouseMoveEvent(mouseEvent, false);
+
+        // Record it so mouseMove() drops its copy this frame instead of sending
+        // the same pixel twice.
+        lastMouseMoveX = mouseEvent.x;
+        lastMouseMoveY = mouseEvent.y;
     } else {
         leftMouseButtonDown = false;
         handler->browserInstance->GetHost()->SendMouseClickEvent(mouseEvent, MBT_LEFT, true, 1);

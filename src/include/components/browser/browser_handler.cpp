@@ -60,6 +60,31 @@ void BrowserHandler::destroy() {
 void BrowserHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     browserInstance = browser;
     browserInstance->GetHost()->SetAudioMuted(AppState::getInstance()->config.audio_muted);
+
+    notifyVisible();
+}
+
+// Windowless browsers keep painting whether or not anyone told them they are on
+// screen, so a missing visibility notification goes unnoticed in the texture.
+// Blink notices: a page it believes is hidden gets its throttleable timers
+// aligned to whole seconds, which turns an 80ms setTimeout into up to a second.
+// requestAnimationFrame keeps running off the OSR frame timer, so animation
+// stays smooth and only timer-driven work is late.
+//
+// The resize/show/invalidate order is the one obs-browser uses, which is the
+// closest production analogue to this plugin. WasResized() re-syncs the view
+// rect first, and the invalidate forces a frame back after a period where
+// OnPaint was allowed to stop.
+void BrowserHandler::notifyVisible() {
+    if (!browserInstance) {
+        return;
+    }
+
+    browserInstance->GetHost()->WasResized();
+    browserInstance->GetHost()->WasHidden(false);
+
+    needsFullDraw = true;
+    browserInstance->GetHost()->Invalidate(PET_VIEW);
 }
 
 bool BrowserHandler::DoClose(CefRefPtr<CefBrowser> browser) {

@@ -55,6 +55,7 @@ class BrowserHandler : public CefClient,
 
         void destroy();
         void uploadPendingPaint();
+        void notifyVisible();
 
         CefRefPtr<CefDisplayHandler> GetDisplayHandler() override {
             return this;
