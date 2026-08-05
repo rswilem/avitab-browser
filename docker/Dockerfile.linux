@@ -6,7 +6,6 @@ RUN apt-get update && \
     apt-get install -y \
     libgl-dev \
     libssl-dev \
-    libcurl4-openssl-dev \
     build-essential \
     cmake \
     libudev-dev \

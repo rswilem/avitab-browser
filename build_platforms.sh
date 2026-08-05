@@ -1,7 +1,73 @@
 #!/bin/sh
 
+show_help() {
+    cat << EOF
+Usage: ./build_platforms.sh [OPTIONS]
+
+Build script for the AviTab Browser X-Plane plugin. Supports building for multiple
+platforms.
+
+OPTIONS:
+    --help              Show this help message and exit
+
+    --platform=PLATFORM Build only the specified platform
+                        Available platforms: mac, win, lin
+
+    --xplane=VERSION    X-Plane version to build for (11/12), default: 12
+
+EXAMPLES:
+    # Interactive mode (default) - prompts for platforms and options
+    ./build_platforms.sh
+
+    # Build only for Mac
+    ./build_platforms.sh --platform=mac
+
+    # Quick rebuild after changes (run after initial build)
+    make -C build/mac -j\$(sysctl -n hw.logicalcpu)
+
+NOTES:
+    - The SDK/ folder must be present in the project root
+    - Linux builds require Docker
+
+EOF
+    exit 0
+}
+
+PLATFORM_OVERRIDE=""
+XPLANE_VERSION=""
+
+for arg in "$@"; do
+    case $arg in
+        --help)
+            show_help
+            ;;
+        --platform=*)
+            PLATFORM_OVERRIDE="${PLATFORM_OVERRIDE} ${arg#*=}"
+            ;;
+        --xplane=*)
+            XPLANE_VERSION="${arg#*=}"
+            ;;
+        *)
+            ;;
+    esac
+done
+
 PROJECT_NAME=$(find . -name "*.xcodeproj" | sed 's/\.xcodeproj//g' | sed 's/^\.\///g' | tr '[:upper:]' '[:lower:]')
 VERSION=$(grep "#define VERSION " src/include/config.h | cut -d " " -f 3 | tr -d '"')
+JOBS=$(nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
+
+AVAILABLE_PLATFORMS="mac win lin"
+
+if [ ! -z "$PLATFORM_OVERRIDE" ]; then
+    for platform in $PLATFORM_OVERRIDE; do
+        if ! echo $AVAILABLE_PLATFORMS | grep -q $platform; then
+            echo "Invalid platform: $platform. Available: $AVAILABLE_PLATFORMS"
+            exit 1
+        fi
+    done
+    PLATFORMS="$PLATFORM_OVERRIDE"
+fi
+
 echo "Building $PROJECT_NAME.xpl version $VERSION. Is this correct? (y/n):"
 read CONFIRM
 
@@ -14,12 +80,13 @@ if [ "$CONFIRM" != "y" ]; then
     exit 1
 fi
 
-AVAILABLE_PLATFORMS="mac win lin"
-echo "Which platforms would you like to build? ($AVAILABLE_PLATFORMS):"
-read PLATFORMS
-
 if [ -z "$PLATFORMS" ]; then
-    PLATFORMS=$AVAILABLE_PLATFORMS
+    echo "Which platforms would you like to build? ($AVAILABLE_PLATFORMS):"
+    read PLATFORMS
+
+    if [ -z "$PLATFORMS" ]; then
+        PLATFORMS=$AVAILABLE_PLATFORMS
+    fi
 fi
 
 for platform in $PLATFORMS; do
@@ -31,14 +98,17 @@ done
 
 echo "Building for platforms: \033[1m$PLATFORMS\033[0m\n"
 
-echo "Which X-Plane version do you want to build for? (11/12):"
-read XPLANE_VERSION
-
 if [ -z "$XPLANE_VERSION" ]; then
-    XPLANE_VERSION=12
+    echo "Which X-Plane version do you want to build for? (11/12):"
+    read XPLANE_VERSION
+
+    if [ -z "$XPLANE_VERSION" ]; then
+        XPLANE_VERSION=12
+    fi
 fi
 
 echo "Building with SDK version $XPLANE_VERSION\n"
+
 echo "Clean build directory? (y/n):"
 read CLEAN_BUILD
 
@@ -69,7 +139,7 @@ for platform in $PLATFORMS; do
         make -C build/$platform -j\$(nproc)"
     else
         cmake -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DXPLANE_VERSION=$XPLANE_VERSION -Bbuild/$platform -H.
-        make -C build/$platform
+        make -C build/$platform -j$JOBS
     fi
 
     if [ $? -eq 0 ]; then
