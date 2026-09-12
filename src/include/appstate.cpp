@@ -65,11 +65,13 @@ bool AppState::initialize() {
         return false;
     }
 
+    // Before loadConfig, because loadAvitabConfig() sizes the tablet rect per
+    // variant.
+    determineAircraftVariant();
+
     if (!loadConfig(false)) {
         return false;
     }
-
-    determineAircraftVariant();
 
     statusbar->initialize();
     browser->initialize();
@@ -80,6 +82,14 @@ bool AppState::initialize() {
     } else if (aircraftVariant == VariantLevelUp737) {
         mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item-levelup737.png");
         mainMenuButton->setPosition(0.604f, 0.43f);
+    } else if (aircraftVariant == VariantFelis742Cargo) {
+        // AviTab's menu grid sits at a fixed spot on the panel, while this
+        // fraction is measured against the freighter's shorter tablet rect, so
+        // it differs from the passenger 747's 0.568 while pointing at the same
+        // icon. Bracketed in the cockpit, 0.62 reads low and 0.64 slightly
+        // high, so this sits just under the top of that range.
+        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
+        mainMenuButton->setPosition(0.2f, 0.635f);
     } else if (aircraftVariant == VariantFelis742) {
         //        mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item-felis.png");
         //        mainMenuButton->setPosition(0.775, 0.615);
@@ -197,7 +207,7 @@ void AppState::update() {
 
         brightness = aircraftVariant == VariantZibo738 && Dataref::getInstance()->getCached<int>("laminar/B738/tab/efb_night_mode") ? 0.5f : 1.0f;
         mainMenuButton->visible = (Dataref::getInstance()->getCached<int>("laminar/B738/tab/menu_page") == 11 && !Dataref::getInstance()->getCached<int>("avitab/panel_enabled"));
-    } else if (aircraftVariant == VariantFelis742) {
+    } else if (aircraftVariant == VariantFelis742 || aircraftVariant == VariantFelis742Cargo) {
         hasPower = Dataref::getInstance()->getCached<int>("avitab/panel_powered") && Dataref::getInstance()->getCached<int>("avitab/panel_enabled");
         canBrowserVisible = hasPower && Dataref::getInstance()->getCached<int>("avitab/is_in_menu") == 0;
 
@@ -564,10 +574,19 @@ bool AppState::loadAvitabConfig() {
         0, 0};
 
 #if AVITAB_USE_FIXED_ASPECT_RATIO
-    constexpr float aspectRatio = 0.6f; // Avitab 800x480
-    float aspectHeight = (float) tabletDimensions.width * aspectRatio;
-    tabletDimensions.y += (tabletDimensions.height - aspectHeight) / 2.0f;
-    tabletDimensions.height = aspectHeight;
+    if (aircraftVariant == VariantFelis742Cargo) {
+        // The freighter's 3D screen does not show the whole panel rect. Its
+        // visible area starts at the bottom of the rect and stops just under
+        // AviTab's own header, so the page gets the bottom 87% of the height.
+        // The generic 800x480 crop centres the page instead, which is what left
+        // a black band along the bottom of the screen.
+        tabletDimensions.height = round(tabletDimensions.height * 0.869f);
+    } else {
+        constexpr float aspectRatio = 0.6f; // Avitab 800x480
+        float aspectHeight = (float) tabletDimensions.width * aspectRatio;
+        tabletDimensions.y += (tabletDimensions.height - aspectHeight) / 2.0f;
+        tabletDimensions.height = aspectHeight;
+    }
 #endif
 
     float multiplier = tabletDimensions.width < config.minimum_width ? (float) config.minimum_width / tabletDimensions.width : 1;
@@ -613,6 +632,13 @@ void AppState::determineAircraftVariant() {
 
     if (Path::getInstance()->aircraftFilename.starts_with("B742_PW_Felis")) {
         aircraftVariant = VariantFelis742;
+        return;
+    }
+
+    // The freighter is a separate 3D model with its own tablet, so it shares
+    // the passenger 747's datarefs but not its screen placement.
+    if (Path::getInstance()->aircraftFilename.starts_with("B742_Cargo_Felis")) {
+        aircraftVariant = VariantFelis742Cargo;
         return;
     }
 

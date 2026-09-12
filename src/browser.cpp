@@ -113,6 +113,33 @@ void Browser::initialize() {
             // Intentionally return false so commands bubble up to the airplane.
             return false;
         });
+    } else if (AppState::getInstance()->aircraftVariant == VariantFelis742Cargo) {
+        // The freighter's 3D screen shows the top 480px of its 800x650 panel
+        // rect, which is exactly what the fixed aspect ratio crop produces, so
+        // the image fills the rect one to one. AviTab's own header sits just
+        // above it, still visible.
+        offsetStart = 0;
+        offsetEnd = 1.0f;
+
+        backButton = new Button(Path::getInstance()->pluginDirectory + (AppState::getInstance()->config.hide_addressbar ? "/assets/icons/arrow-left-circle.svg" : "/assets/icons/x-circle.svg"));
+        backButton->setPosition(backButton->relativeWidth / 2.0f + 0.01f, 0.967f);
+        backButton->setClickHandler([]() {
+            if (!AppState::getInstance()->browserVisible) {
+                return false;
+            }
+
+            if (!AppState::getInstance()->config.hide_addressbar) {
+                Dataref::getInstance()->executeCommand("AviTab/Home");
+                return true;
+            }
+
+            bool didGoBack = AppState::getInstance()->browser->goBack();
+            if (!didGoBack) {
+                Dataref::getInstance()->executeCommand("AviTab/Home");
+            }
+
+            return true;
+        });
     } else if (AppState::getInstance()->aircraftVariant == VariantAirfoillabsC172) {
         offsetStart = 0;
         offsetEnd = 1.0f;

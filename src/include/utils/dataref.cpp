@@ -379,7 +379,17 @@ bool Dataref::getMouse(float *normalizedX, float *normalizedY, float windowX, fl
     *normalizedX = (mouseX - AppState::getInstance()->tabletDimensions.x) / AppState::getInstance()->tabletDimensions.width;
     *normalizedY = (mouseY - AppState::getInstance()->tabletDimensions.y) / AppState::getInstance()->tabletDimensions.height;
 
-    bool inBounds = !(*normalizedX < -0.1f || *normalizedX > 1.1f || *normalizedY < -0.1f || *normalizedY > 1.1f);
+    // The margin around the tablet exists because the Felis status bar and back
+    // button are drawn just above and below the panel rect, so clicks there
+    // still belong to us. Horizontally there is nothing of ours outside the
+    // rect, and on the Felis the CDU sits right next to the tablet on the same
+    // panel texture, where a margin swallows its left-hand keys before the
+    // aircraft sees the click. So no horizontal slack on that variant.
+    AircraftVariant variant = AppState::getInstance()->aircraftVariant;
+    float paddingX = (variant == VariantFelis742 || variant == VariantFelis742Cargo) ? 0.0f : 0.1f;
+    constexpr float paddingY = 0.1f;
+
+    bool inBounds = !(*normalizedX < -paddingX || *normalizedX > 1.0f + paddingX || *normalizedY < -paddingY || *normalizedY > 1.0f + paddingY);
 
     // Once an extrapolated position leaves the tablet, drop the anchor so
     // extrapolation can't resume until a real click_3d sample arrives.
