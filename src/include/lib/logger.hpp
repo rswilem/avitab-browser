@@ -93,7 +93,10 @@ class Logger {
         }
 
     private:
-        Logger() : currentLogLevel(LogLevel::INFO), initialized(false) {}
+        // mainThreadId is set here as well as in initialize(): the singleton is constructed on
+        // first use, which is the main thread in practice, and this keeps the thread check
+        // meaningful for anything logged before initialize() runs.
+        Logger() : mainThreadId(std::this_thread::get_id()), initialized(false), currentLogLevel(LogLevel::INFO) {}
 
         ~Logger() = default;
         Logger(const Logger &) = delete;
@@ -130,14 +133,23 @@ class Logger {
             char finalBuffer[1360];
             snprintf(finalBuffer, sizeof(finalBuffer), "[%s] %s: %s", PRODUCT_NAME, levelStr, buffer);
 
-            if (!initialized || std::this_thread::get_id() == mainThreadId) {
-                // On the main thread (or before the plugin is up): emit directly.
+            if (std::this_thread::get_id() == mainThreadId) {
+                // On the main thread: emit directly.
                 emit(finalBuffer);
-            } else {
+            } else if (initialized.load(std::memory_order_acquire)) {
                 // Off the main thread: hand off to the flight-loop flush so
                 // XPLMDebugString is only ever touched from the main thread.
                 std::lock_guard<std::mutex> lock(queueMutex);
                 pending.emplace(finalBuffer);
+            } else {
+                // Off the main thread while the plugin is down (destroy() has run) or not yet up:
+                // no flush callback exists to drain the queue, and XPLMDebugString off the main
+                // thread is fatal - X-Plane aborts with "forbidden to run loop on threads other
+                // than event-loop thread". stdout is all that is left. The lock only keeps
+                // concurrent lines from interleaving.
+                std::lock_guard<std::mutex> lock(queueMutex);
+                printf("%s", finalBuffer);
+                fflush(stdout);
             }
         }
 

@@ -1,49 +1,9 @@
 #!/bin/sh
 
-show_help() {
-    cat << EOF
-Usage: ./build_platforms.sh [OPTIONS]
-
-Build script for the AviTab Browser X-Plane plugin. Supports building for multiple
-platforms.
-
-OPTIONS:
-    --help              Show this help message and exit
-
-    --platform=PLATFORM Build only the specified platform
-                        Available platforms: mac, win, lin
-
-    --xplane=VERSION    X-Plane version to build for (11/12), default: 12
-
-EXAMPLES:
-    # Interactive mode (default) - prompts for platforms and options
-    ./build_platforms.sh
-
-    # Build only for Mac
-    ./build_platforms.sh --platform=mac
-
-    # Quick rebuild after changes (run after initial build)
-    make -C build/mac -j\$(sysctl -n hw.logicalcpu)
-
-NOTES:
-    - The SDK/ folder must be present in the project root
-    - Linux builds require Docker
-
-EOF
-    exit 0
-}
-
-PLATFORM_OVERRIDE=""
 XPLANE_VERSION=""
 
 for arg in "$@"; do
     case $arg in
-        --help)
-            show_help
-            ;;
-        --platform=*)
-            PLATFORM_OVERRIDE="${PLATFORM_OVERRIDE} ${arg#*=}"
-            ;;
         --xplane=*)
             XPLANE_VERSION="${arg#*=}"
             ;;
@@ -58,16 +18,6 @@ JOBS=$(nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
 
 AVAILABLE_PLATFORMS="mac win lin"
 
-if [ ! -z "$PLATFORM_OVERRIDE" ]; then
-    for platform in $PLATFORM_OVERRIDE; do
-        if ! echo $AVAILABLE_PLATFORMS | grep -q $platform; then
-            echo "Invalid platform: $platform. Available: $AVAILABLE_PLATFORMS"
-            exit 1
-        fi
-    done
-    PLATFORMS="$PLATFORM_OVERRIDE"
-fi
-
 echo "Building $PROJECT_NAME.xpl version $VERSION. Is this correct? (y/n):"
 read CONFIRM
 
@@ -80,13 +30,11 @@ if [ "$CONFIRM" != "y" ]; then
     exit 1
 fi
 
-if [ -z "$PLATFORMS" ]; then
-    echo "Which platforms would you like to build? ($AVAILABLE_PLATFORMS):"
-    read PLATFORMS
+echo "Which platforms would you like to build? ($AVAILABLE_PLATFORMS) [default: all]:"
+read PLATFORMS
 
-    if [ -z "$PLATFORMS" ]; then
-        PLATFORMS=$AVAILABLE_PLATFORMS
-    fi
+if [ -z "$PLATFORMS" ]; then
+    PLATFORMS=$AVAILABLE_PLATFORMS
 fi
 
 for platform in $PLATFORMS; do
@@ -133,10 +81,16 @@ fi
 for platform in $PLATFORMS; do
     echo "Building $platform..."
     if [ $platform = "lin" ]; then
-        docker build -t gcc-cmake -f ./docker/Dockerfile.linux . && \
-        docker run --user $(id -u):$(id -g) --rm -v $(pwd):/src -w /src gcc-cmake:latest bash -c "\
+        docker build -t xplane-build:jammy-gcc13 -f ./docker/Dockerfile.linux . && \
+        docker run --user $(id -u):$(id -g) --rm -v $(pwd):/src -w /src xplane-build:jammy-gcc13 bash -c "\
         cmake -DCMAKE_CXX_FLAGS='-march=x86-64' -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DXPLANE_VERSION=$XPLANE_VERSION -Bbuild/$platform -H. && \
-        make -C build/$platform -j\$(nproc)"
+        make -C build/$platform -j\$(nproc) && \
+        if objdump -T build/$platform/${platform}_x64/${PROJECT_NAME}.xpl | grep -q '__isoc23_'; then \
+            echo 'ERROR: this build links post-glibc-2.36 symbols:'; \
+            objdump -T build/$platform/${platform}_x64/${PROJECT_NAME}.xpl | grep -o '__isoc23_[a-z]*' | sort -u; \
+            echo 'The Linux image base is too new; the plugin will not load on older distros. See docker/Dockerfile.linux.'; \
+            exit 1; \
+        fi"
     else
         cmake -DCMAKE_TOOLCHAIN_FILE=toolchain-$platform.cmake -DXPLANE_VERSION=$XPLANE_VERSION -Bbuild/$platform -H.
         make -C build/$platform -j$JOBS
