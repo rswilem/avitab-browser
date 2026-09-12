@@ -613,6 +613,70 @@ CursorType Browser::cursor() {
     return handler->cursorState;
 }
 
+// CEF rejects a cache_path outside CefSettings.root_cache_path and falls back
+// to in-memory storage. X-Plane 12.4.4 sets that root to Output/caches/cef.
+static std::string resolveCachePath(const std::string &legacyCachePath) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+
+    auto normalize = [](const std::string &value) {
+        fs::path path = fs::path(value).lexically_normal();
+        if (path.filename().empty()) {
+            path = path.parent_path();
+        }
+        return path;
+    };
+
+    std::vector<std::string> rootCandidates;
+    if (CefRefPtr<CefRequestContext> globalContext = CefRequestContext::GetGlobalContext()) {
+        rootCandidates.push_back(globalContext->GetCachePath().ToString());
+    }
+    rootCandidates.push_back(Path::getInstance()->rootDirectory + "/Output/caches/cef");
+
+    fs::path root;
+    for (const std::string &candidate : rootCandidates) {
+        if (candidate.empty()) {
+            continue;
+        }
+        fs::path path = normalize(candidate);
+        if (fs::is_directory(path, ec)) {
+            root = path;
+            break;
+        }
+    }
+
+    fs::path legacy = normalize(legacyCachePath);
+    if (root.empty() || legacy == root || legacy.string().starts_with((root / "").string())) {
+        return legacyCachePath;
+    }
+
+    fs::path profile = root / PRODUCT_NAME;
+    if (!fs::exists(profile, ec) && fs::is_directory(legacy, ec)) {
+        fs::rename(legacy, profile, ec);
+        if (ec) {
+            // Copy the state, skip the rebuildable page caches.
+            Logger::getInstance()->warn("Could not move browser profile to %s (%s), copying instead\n", profile.string().c_str(), ec.message().c_str());
+            fs::create_directories(profile, ec);
+            for (const fs::directory_entry &entry : fs::directory_iterator(legacy, ec)) {
+                const std::string name = entry.path().filename().string();
+                if (name == "Cache" || name == "Code Cache" || name == "GPUCache" || name == "DawnCache") {
+                    continue;
+                }
+                std::error_code copyError;
+                fs::copy(entry.path(), profile / name, fs::copy_options::recursive | fs::copy_options::overwrite_existing, copyError);
+                if (copyError) {
+                    Logger::getInstance()->warn("Could not copy %s into the browser profile: %s\n", name.c_str(), copyError.message().c_str());
+                }
+            }
+        } else {
+            Logger::getInstance()->info("Moved browser profile from %s to %s\n", legacy.string().c_str(), profile.string().c_str());
+        }
+    }
+
+    Logger::getInstance()->info("Browser profile directory: %s\n", profile.string().c_str());
+    return profile.string();
+}
+
 bool Browser::createBrowser() {
     if (handler && handler->browserInstance) {
         return false;
@@ -638,9 +702,19 @@ bool Browser::createBrowser() {
 #endif
 #endif
 
-    std::string cachePath = Path::getInstance()->pluginDirectory + "/cache";
-    if (!std::filesystem::exists(cachePath)) {
-        std::filesystem::create_directories(cachePath);
+    std::string legacyCachePath = Path::getInstance()->pluginDirectory + "/cache";
+    if (!std::filesystem::exists(legacyCachePath)) {
+        std::filesystem::create_directories(legacyCachePath);
+    }
+
+    if (!initializeCef(legacyCachePath)) {
+        return false;
+    }
+
+    std::string cachePath = resolveCachePath(legacyCachePath);
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(cachePath, ec);
     }
 
     CefRequestContextSettings context_settings;
@@ -714,10 +788,6 @@ bool Browser::createBrowser() {
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = AppState::getInstance()->config.framerate;
     browser_settings.background_color = CefColorSetARGB(0xFF, 0xFF, 0xFF, 0xFF);
-
-    if (!initializeCef(cachePath)) {
-        return false;
-    }
 
     handler = CefRefPtr<BrowserHandler>(new BrowserHandler(textureId, &currentUrl, AppState::getInstance()->tabletDimensions.browserWidth, AppState::getInstance()->tabletDimensions.browserHeight));
 
