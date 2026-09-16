@@ -1,5 +1,5 @@
-#ifndef XPLM301
-    #error This is made to be compiled against the X-Plane 4.2.0 SDK for XP11 and XP12
+#ifndef XPLM440
+    #error This is made to be compiled against the X-Plane 4.4.0 SDK for XP11 and XP12
 #endif
 
 #include "config.h"
@@ -7,7 +7,13 @@
 #include "dataref.h"
 #include "path.h"
 #include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
 #include <XPLMDisplay.h>
+#include <XPLMPanelGraphics.h>
+#include <XPLMUtilities.h>
 #include <XPLMPlugin.h>
 #include <XPLMMenus.h>
 #include <XPLMProcessing.h>
@@ -46,11 +52,89 @@ unsigned char pressedKeyCode = 0;
 unsigned char pressedVirtualKeyCode = 0;
 double pressedKeyTime = 0;
 
+// SDK 4.4 entry points, resolved at runtime so one binary still loads on older sims.
+struct PanelGraphicsApi {
+    XPLMFontHandle (*createFont)(XPLMCharSet_t) = nullptr;
+    void (*destroyFont)(XPLMFontHandle) = nullptr;
+    int (*fontAddFace)(XPLMFontHandle, const char *) = nullptr;
+    void (*fontDrawString)(XPLMFontHandle, uint32_t, float, float, float, const char *, XPLMJustification_t) = nullptr;
+    uint32_t (*makeColor)(float, float, float, float) = nullptr;
+
+    bool available() const {
+        return createFont && destroyFont && fontAddFace && fontDrawString && makeColor;
+    }
+};
+
+static PanelGraphicsApi panelGraphics;
+static bool hostHasSdk440 = false;
+static XPLMFontHandle aboutFont = nullptr;
+
+static const std::array<std::pair<float, const char *>, 6> aboutLines = {{
+    {16.0f, FRIENDLY_NAME},
+    {32.0f, "Version " VERSION},
+    {64.0f, "This software is licensed under the GNU General Public License, GPL-3.0"},
+    {96.0f, "For updates to " FRIENDLY_NAME ", please see the forums at x-plane.org"},
+    {112.0f, "or checkout the GitHub releases at github.com/rswilem/avitab-browser."},
+    {128.0f, "Made with love by TheRamon, thank you for using this software!"},
+}};
+
+template <typename T>
+static void resolveSymbol(T &target, const char *name) {
+    target = reinterpret_cast<T>(XPLMFindSymbol(name));
+}
+
+static void resolvePanelGraphics() {
+    int xplaneVersion = 0;
+    int xplmVersion = 0;
+    XPLMHostApplicationID host = 0;
+    XPLMGetVersions(&xplaneVersion, &xplmVersion, &host);
+    hostHasSdk440 = xplmVersion >= 440;
+    if (!hostHasSdk440) {
+        return;
+    }
+
+    resolveSymbol(panelGraphics.createFont, "XPLMCreateFont");
+    resolveSymbol(panelGraphics.destroyFont, "XPLMDestroyFont");
+    resolveSymbol(panelGraphics.fontAddFace, "XPLMFontAddFace");
+    resolveSymbol(panelGraphics.fontDrawString, "XPLMFontDrawString");
+    resolveSymbol(panelGraphics.makeColor, "XPLMMakeColor");
+}
+
+// Older hosts reject a struct size they do not know; the 4.4 fields are the tail.
+static int windowStructSize() {
+    return hostHasSdk440 ? (int) sizeof(XPLMCreateWindow_t) : (int) offsetof(XPLMCreateWindow_t, contentType);
+}
+
+static bool loadAboutFont() {
+    static bool failed = false;
+    if (aboutFont || failed) {
+        return aboutFont != nullptr;
+    }
+    if (!panelGraphics.available()) {
+        failed = true;
+        return false;
+    }
+
+    XPLMFontHandle font = panelGraphics.createFont(xplm_CharSetUnicode);
+    std::string face = Path::getInstance()->rootDirectory + "/Resources/fonts/Roboto-Regular.ttf";
+    if (!font || !panelGraphics.fontAddFace(font, face.c_str())) {
+        if (font) {
+            panelGraphics.destroyFont(font);
+        }
+        failed = true;
+        return false;
+    }
+
+    aboutFont = font;
+    return true;
+}
+
 PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
 {
     // Capture the main thread and register the log flush loop before anything
     // else logs, so every XPLMDebugString call is marshalled onto this thread.
     Logger::getInstance()->initialize();
+    resolvePanelGraphics();
 
     strcpy(name, FRIENDLY_NAME);
     strcpy(sig, BUNDLE_ID);
@@ -97,6 +181,10 @@ PLUGIN_API void XPluginStop(void) {
     if (AppState::getInstance()->mainWindow) {
         XPLMDestroyWindow(AppState::getInstance()->mainWindow);
         AppState::getInstance()->mainWindow = nullptr;
+    }
+    if (aboutFont) {
+        panelGraphics.destroyFont(aboutFont);
+        aboutFont = nullptr;
     }
     
     destroyCursor();
@@ -165,51 +253,41 @@ void menuAction(void* mRef, void* iRef) {
     if (!strcmp((char *)iRef, "ActionAbout")) {
         int winLeft, winTop, winRight, winBot;
         XPLMGetScreenBoundsGlobal(&winLeft, &winTop, &winRight, &winBot);
-        XPLMCreateWindow_t params;
+        XPLMCreateWindow_t params = {};
         float screenWidth = fabs(winLeft - winRight);
         float screenHeight = fabs(winTop - winBot);
         float width = 450.0f;
         float height = 180.0f;
 
-        // Calculate centered position for the window
-        params.structSize = sizeof(params);
+        params.structSize = windowStructSize();
         params.left = (int)(winLeft + (screenWidth - width) / 2);
         params.right = params.left + width;
         params.top = (int)(winTop - (screenHeight - height) / 2);
         params.bottom = params.top - height;
         params.visible = 1;
         params.refcon = nullptr;
-        params.drawWindowFunc = [](XPLMWindowID inWindowID, void *drawingRef){
-            XPLMSetGraphicsState(
-                                 0, // No fog, equivalent to glDisable(GL_FOG);
-                                 0, // One texture, equivalent to glEnable(GL_TEXTURE_2D);
-                                 0, // No lighting, equivalent to glDisable(GL_LIGHT0);
-                                 0, // No alpha testing, e.g glDisable(GL_ALPHA_TEST);
-                                 1, // Use alpha blending, e.g. glEnable(GL_BLEND);
-                                 0, // No depth read, e.g. glDisable(GL_DEPTH_TEST);
-                                 0 // No depth write, e.g. glDepthMask(GL_FALSE);
-            );
-            glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
-            
-            int left, top, right, bottom;
-            XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
-            float color[] = {1.0f, 1.0f, 1.0f};
-            
-            float x = left + 16.0f;
-            float y = top - 16.0f;
-            XPLMDrawString(color, x, y, FRIENDLY_NAME, nullptr, xplmFont_Proportional);
-            y -= 16.0f;
-            XPLMDrawString(color, x, y, "Version " VERSION, nullptr, xplmFont_Proportional);
-            y -= 32.0f;
-            XPLMDrawString(color, x, y, "This software is licensed under the GNU General Public License, GPL-3.0", nullptr, xplmFont_Proportional);
-            y -= 32.0f;
-            XPLMDrawString(color, x, y, "For updates to " FRIENDLY_NAME ", please see the forums at x-plane.org", nullptr, xplmFont_Proportional);
-            y -= 16.0f;
-            XPLMDrawString(color, x, y, "or checkout the GitHub releases at github.com/rswilem/avitab-browser.", nullptr, xplmFont_Proportional);
-            y -= 16.0f;
-            XPLMDrawString(color, x, y, "Made with love by TheRamon, thank you for using this software!", nullptr, xplmFont_Proportional);
-        };
-        
+        if (loadAboutFont()) {
+            params.contentType = xplm_WindowContentTypePanelGraphics;
+            params.drawWindowFunc = [](XPLMWindowID inWindowID, void *) {
+                int left, top, right, bottom;
+                XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
+                uint32_t white = panelGraphics.makeColor(1.0f, 1.0f, 1.0f, 1.0f);
+                for (const auto &[offset, text] : aboutLines) {
+                    panelGraphics.fontDrawString(aboutFont, white, 13.0f, left + 16.0f, top - offset, text, xplm_JustLeft);
+                }
+            };
+        } else {
+            params.drawWindowFunc = [](XPLMWindowID inWindowID, void *) {
+                XPLMSetGraphicsState(0, 0, 0, 0, 1, 0, 0);
+                int left, top, right, bottom;
+                XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
+                float color[] = {1.0f, 1.0f, 1.0f};
+                for (const auto &[offset, text] : aboutLines) {
+                    XPLMDrawString(color, left + 16.0f, top - offset, text, nullptr, xplmFont_Proportional);
+                }
+            };
+        }
+
         params.handleMouseClickFunc = nullptr;
         params.handleRightClickFunc = nullptr;
         params.handleMouseWheelFunc = nullptr;
@@ -415,8 +493,8 @@ void registerWindow() {
 
     int winLeft, winTop, winRight, winBot;
     XPLMGetScreenBoundsGlobal(&winLeft, &winTop, &winRight, &winBot);
-    XPLMCreateWindow_t params;
-    params.structSize = sizeof(params);
+    XPLMCreateWindow_t params = {};
+    params.structSize = windowStructSize();
     params.left = winLeft;
     params.right = winRight;
     params.top = winTop;

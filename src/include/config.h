@@ -14,7 +14,7 @@
 
 #define PRODUCT_NAME "avitab-browser"
 #define FRIENDLY_NAME "AviTab Browser"
-#define VERSION "1.1.1"
+#define VERSION "1.1.2"
 #define ALL_PLUGINS_DIRECTORY "/Resources/plugins/"
 #define PLUGIN_DIRECTORY (ALL_PLUGINS_DIRECTORY PRODUCT_NAME)
 #define BUNDLE_ID "com.ramonster." PRODUCT_NAME
