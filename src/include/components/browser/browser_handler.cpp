@@ -63,32 +63,34 @@ void BrowserHandler::destroy() {
     hasTextSelection = false;
 }
 
-// Logs the outcome of every DevTools method we send, so a refused override
-// or injection shows up in the log instead of failing silently.
+// A refused DevTools method (UA profile, navigator shim) would otherwise fail
+// silently; log it so a CEF change in X-Plane shows up in the log.
 class DevToolsResultLogger : public CefDevToolsMessageObserver {
     IMPLEMENT_REFCOUNTING(DevToolsResultLogger);
 
     public:
         void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success, const void *result, size_t result_size) override {
-            std::string payload(static_cast<const char *>(result), result_size);
-            Logger::getInstance()->info("[DevTools] id=%d %s: %s\n", message_id, success ? "ok" : "ERROR", payload.c_str());
+            if (!success) {
+                std::string payload(static_cast<const char *>(result), result_size);
+                Logger::getInstance()->warn("[DevTools] method %d failed: %s\n", message_id, payload.c_str());
+            }
         }
 };
 
 static void sendDevTools(CefRefPtr<CefBrowser> browser, const char *method, CefRefPtr<CefDictionaryValue> params) {
-    int id = browser->GetHost()->ExecuteDevToolsMethod(0, method, params);
-    Logger::getInstance()->info("[DevTools] %s -> id=%d\n", method, id);
+    if (browser->GetHost()->ExecuteDevToolsMethod(0, method, params) == 0) {
+        Logger::getInstance()->warn("[DevTools] %s was not sent\n", method);
+    }
 }
 
 void BrowserHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     browserInstance = browser;
     browserInstance->GetHost()->SetAudioMuted(AppState::getInstance()->config.audio_muted);
 
-    // The browser is created on about:blank so the UA override is in place
-    // before the first real navigation and its client hints go out.
+    // The browser is created on about:blank so the navigator shim is
+    // registered before the first real navigation runs any page script.
     devToolsLogger = new DevToolsResultLogger();
     devToolsRegistration = browser->GetHost()->AddDevToolsMessageObserver(devToolsLogger);
-    UserAgent::applyOverride(browser);
     installNavigatorOverrides(browser);
     if (currentUrl && !currentUrl->empty()) {
         browser->GetMainFrame()->LoadURL(*currentUrl);
@@ -494,38 +496,34 @@ void BrowserHandler::OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<
     }
 }
 
-#if DEBUG
+// Runs on the UI thread before the navigation request is sent, and DevTools
+// messages dispatch in order on that same thread, so the profile switch lands
+// ahead of the request. Redirects pass through here too, so an OAuth hop
+// back from Google switches the profile back.
 bool BrowserHandler::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) {
-    if (frame->IsMain()) {
-        std::string url = request->GetURL();
-        Logger::getInstance()->debug("URL: %s\n", url.c_str());
+    if (!frame->IsMain()) {
+        return false;
+    }
+
+    std::string url = request->GetURL();
+#if DEBUG
+    Logger::getInstance()->debug("URL: %s\n", url.c_str());
+#endif
+
+    UserAgent::Profile profile = UserAgent::profileFor(url);
+    if (!userAgentApplied || profile != userAgentProfile) {
+        UserAgent::apply(browser, profile);
+        userAgentProfile = profile;
+        userAgentApplied = true;
     }
 
     return false;
 }
-#endif
 
 void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) {
     if (!frame->IsMain()) {
         return;
     }
-
-    // Diagnostic: report from inside the page whether the early injection ran.
-    CefRefPtr<CefDictionaryValue> probe = CefDictionaryValue::Create();
-    probe->SetString("expression", R"(JSON.stringify({
-        href: location.href, installed: window.avitab_overrides_installed,
-        outer: [outerWidth, outerHeight], inner: [innerWidth, innerHeight],
-        screen: [screen.width, screen.height, screen.availWidth, screen.availHeight, screen.colorDepth], dpr: devicePixelRatio,
-        visibility: document.visibilityState, focus: document.hasFocus(),
-        uaData: navigator.userAgentData ? navigator.userAgentData.brands : null, platform: navigator.platform,
-        cores: navigator.hardwareConcurrency, mem: navigator.deviceMemory, langs: navigator.languages,
-        chrome: typeof window.chrome, webdriver: navigator.webdriver, plugins: navigator.plugins.length,
-        cookies: navigator.cookieEnabled, storage: (function(){ try { localStorage.setItem('_a','1'); return true; } catch(e) { return e.name; } })(),
-        notif: window.Notification ? Notification.permission : 'n/a',
-        turnstile: Array.from(document.querySelectorAll('iframe')).map(f => f.src.slice(0, 60))
-    }))");
-    probe->SetBool("returnByValue", true);
-    sendDevTools(browser, "Runtime.evaluate", probe);
 
     overrideGeolocationAndNavigator(browser);
     injectAddressBar(browser);
@@ -539,34 +537,57 @@ static const std::string navigatorOverrideScript = R"(
             if (window.avitab_overrides_installed) { return; }
             window.avitab_overrides_installed = true;
             window.avitab_watchers = (window.avitab_watchers || {});
-            Object.defineProperty(navigator, 'onLine', { get: function() { return true; }, configurable: true });
+
+            // Replacements are installed on the prototypes and answer
+            // Function.prototype.toString like the natives they replace.
+            var natives = new Map();
+            var nativeToString = Function.prototype.toString;
+            function install(proto, name, replacement) {
+                var original = proto[name];
+                natives.set(replacement, nativeToString.call(original));
+                Object.defineProperty(proto, name, { value: replacement, writable: true, configurable: true, enumerable: true });
+            }
+            var patchedToString = function toString() {
+                return natives.has(this) ? natives.get(this) : nativeToString.call(this);
+            };
+            natives.set(patchedToString, nativeToString.call(nativeToString));
+            Object.defineProperty(Function.prototype, 'toString', { value: patchedToString, writable: true, configurable: true });
+
             if (!window.Notification) {
                 function Notification() { throw new TypeError('Illegal constructor'); }
                 Notification.permission = 'default';
                 Notification.maxActions = 2;
-                Notification.requestPermission = function(cb) { if (cb) { cb('denied'); } return Promise.resolve('denied'); };
+                Notification.requestPermission = function requestPermission(cb) { if (cb) { cb('denied'); } return Promise.resolve('denied'); };
+                natives.set(Notification, 'function Notification() { [native code] }');
+                natives.set(Notification.requestPermission, 'function requestPermission() { [native code] }');
                 window.Notification = Notification;
             }
-            var nativeQuery = navigator.permissions.query.bind(navigator.permissions);
-            navigator.permissions.query = function(options) {
+
+            var onLineGetter = function onLine() { return true; };
+            natives.set(onLineGetter, 'function get onLine() { [native code] }');
+            Object.defineProperty(Navigator.prototype, 'onLine', { get: onLineGetter, configurable: true, enumerable: true });
+
+            var nativeQuery = Permissions.prototype.query;
+            install(Permissions.prototype, 'query', function query(options) {
                 if (options && options.name === 'geolocation') { return Promise.resolve({ state: 'granted', onchange: null }); }
-                if (options && options.name === 'notifications' && window.Notification) {
+                if (options && options.name === 'notifications') {
                     var state = Notification.permission === 'default' ? 'prompt' : Notification.permission;
                     return Promise.resolve({ state: state, onchange: null });
                 }
-                return nativeQuery(options);
-            };
-            navigator.geolocation.watchPosition = function(success, error, options) {
+                return nativeQuery.call(this, options);
+            });
+
+            install(Geolocation.prototype, 'watchPosition', function watchPosition(success, error, options) {
                 var id = Math.round(Date.now() / 1000);
                 window.avitab_watchers[id] = success;
                 if (window.avitab_location) { success(window.avitab_location); }
                 return id;
-            };
-            navigator.geolocation.clearWatch = function(id) { delete window.avitab_watchers[id]; };
-            navigator.geolocation.getCurrentPosition = function(success, error, options) {
+            });
+            install(Geolocation.prototype, 'clearWatch', function clearWatch(id) { delete window.avitab_watchers[id]; });
+            install(Geolocation.prototype, 'getCurrentPosition', function getCurrentPosition(success, error, options) {
                 if (window.avitab_location) { success(window.avitab_location); }
                 else { navigator.geolocation.watchPosition(success, error, options); }
-            };
+            });
         })();
     )";
 
@@ -652,30 +673,61 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             addressBar.style.height = '20px';
             addressBar.style.color = isDarkMode ? '#D2D2D2' : '#1A1A1A';
             addressBar.style.backgroundColor = isDarkMode ? '#000000' : '#D2D2D2';
-            addressBar.style.padding = '2px 8px';
+            addressBar.style.padding = '2px 24px 2px 8px';
             addressBar.style.borderRadius = '12px';
-    
-            const observer = new MutationObserver(() => {
-                addressBar.value = window.location.href;
-            });
-            observer.observe(document, { subtree: true, childList: true });
+            addressBar.style.minWidth = '0';
+            addressBar.style.textOverflow = 'ellipsis';
+            addressBar.spellcheck = false;
+            addressBar.autocomplete = 'off';
 
-            window.addEventListener("popstate", () => {
-                addressBar.value = window.location.href;
-            });
+            // Wrapper so the clear button can sit inside the input's padding
+            const addressWrap = document.createElement('div');
+            addressWrap.style.position = 'relative';
+            addressWrap.style.flex = '1';
+            addressWrap.style.minWidth = '0';
+            addressWrap.style.display = 'flex';
+    
+            // Only mirror location changes while the user isn't editing the field
+            const syncAddressBar = () => {
+                if (document.activeElement !== addressBar) {
+                    addressBar.value = window.location.href;
+                }
+            };
+            const observer = new MutationObserver(syncAddressBar);
+            observer.observe(document, { subtree: true, childList: true });
+            window.addEventListener("popstate", syncAddressBar);
+            window.addEventListener("hashchange", syncAddressBar);
+
+            addressBar.addEventListener('focus', () => addressBar.select());
+            addressBar.addEventListener('mouseup', (e) => e.preventDefault());
+
+            // Turn typed input into an absolute URL or a search query
+            const resolveInput = (raw) => {
+                const text = raw.trim();
+                if (text === '') return null;
+                if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+                const hostLike = /^[^\s\/?#]+\.[^\s\/?#]+(?:[\/?#].*)?$/.test(text) || /^localhost(?::\d+)?(?:[\/?#].*)?$/i.test(text) || /^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:[\/?#].*)?$/.test(text);
+                if (hostLike && !/\s/.test(text)) return 'https://' + text;
+                return 'https://www.google.com/search?q=' + encodeURIComponent(text);
+            };
 
             addressBar.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
-                    if (!addressBar.value.startsWith('http')) {
-                        addressBar.value = "https://" + addressBar.value;
+                    e.preventDefault();
+                    const target = resolveInput(addressBar.value);
+                    if (target) {
+                        addressBar.value = target;
+                        addressBar.blur();
+                        window.location.href = target;
                     }
-    
-                    window.location.href = addressBar.value;
+                } else if (e.key === 'Escape') {
+                    addressBar.value = window.location.href;
+                    addressBar.blur();
                 }
             });
 
             addressBar.addEventListener('blur', function(e) {
-                if (addressBar.value === '') {
+                if (addressBar.value.trim() === '') {
                     addressBar.value = window.location.href;
                 }
             });
@@ -692,8 +744,13 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             clearInputButton.style.outline = 'none';
             clearInputButton.style.border = 'none';
             clearInputButton.style.position = 'absolute';
-            clearInputButton.style.right = '32px';
+            clearInputButton.style.right = '6px';
+            clearInputButton.style.top = '50%';
+            clearInputButton.style.transform = 'translateY(-50%)';
+            clearInputButton.style.padding = '0';
+            clearInputButton.style.lineHeight = '14px';
             clearInputButton.style.zIndex = '9';
+            clearInputButton.onmousedown = (e) => e.preventDefault();
             clearInputButton.onclick = function() {
                 addressBar.value = '';
                 addressBar.focus();
@@ -714,8 +771,9 @@ void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {
             // Add elements to the toolbar
             toolbar.appendChild(backBtn);
             toolbar.appendChild(fwdBtn);
-            toolbar.appendChild(addressBar);
-            toolbar.appendChild(clearInputButton);
+            addressWrap.appendChild(addressBar);
+            addressWrap.appendChild(clearInputButton);
+            toolbar.appendChild(addressWrap);
             toolbar.appendChild(refreshButton);
 
             // Insert toolbar at the very top of <body>

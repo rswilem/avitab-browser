@@ -415,8 +415,8 @@ scroll_speed=
 # Valid values: en-US, en-GB, nl-NL, fr-FR, etc.
 # Leave empty for default language.
 forced_language=
-# user_agent: The User-Agent header for the browser
-# Leave empty for the default Chrome UA.
+# user_agent: Full User-Agent string override, used on every site.
+# Leave empty for the default: the engine's own UA, with a Chrome UA on Google domains only.
 user_agent=
 # hide_addressbar: Whether the address bar should be hidden or not. Default is false.
 hide_addressbar=
@@ -463,7 +463,8 @@ url_5=
     config.minimum_width = reader.GetInteger("browser", "minimum_width", 0);
     config.scroll_speed = reader.GetInteger("browser", "scroll_speed", 5);
     config.forced_language = reader.Get("browser", "forced_language", "");
-    config.user_agent = reader.GetString("browser", "user_agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.2.5.0 Safari/537.36");
+    // Empty means "let UserAgent pick a profile per site"; a value forces it everywhere.
+    config.user_agent = reader.Get("browser", "user_agent", "");
     config.hide_addressbar = reader.GetBoolean("browser", "hide_addressbar", false);
     config.framerate = reader.GetInteger("browser", "framerate", 25);
 

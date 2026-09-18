@@ -864,7 +864,11 @@ bool Browser::initializeCef(const std::string &cachePath) {
     CefSettings settings;
     settings.windowless_rendering_enabled = true;
     CefString(&settings.cache_path) = cachePath;
-    CefString(&settings.user_agent) = UserAgent::configured();
+    if (!AppState::getInstance()->config.user_agent.empty()) {
+        CefString(&settings.user_agent) = AppState::getInstance()->config.user_agent;
+    } else {
+        CefString(&settings.user_agent_product) = UserAgent::productToken();
+    }
 
 #if IBM
     CefMainArgs main_args(GetModuleHandle(nullptr));

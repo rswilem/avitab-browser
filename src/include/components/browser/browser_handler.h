@@ -4,6 +4,7 @@
 #include "cursor.h"
 
 #include <include/cef_client.h>
+#include "user_agent.h"
 #include <include/cef_devtools_message_observer.h>
 #include <include/cef_registration.h>
 #include <include/cef_version.h>
@@ -35,6 +36,8 @@ class BrowserHandler : public CefClient,
         std::string *currentUrl;
         CefRefPtr<CefDevToolsMessageObserver> devToolsLogger;
         CefRefPtr<CefRegistration> devToolsRegistration;
+        UserAgent::Profile userAgentProfile = UserAgent::Profile::Engine;
+        bool userAgentApplied = false;
         unsigned short windowWidth;
         unsigned short windowHeight;
         // CPU-side copy of the CEF framebuffer. OnPaint writes into this buffer;
@@ -127,9 +130,7 @@ class BrowserHandler : public CefClient,
         void OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, const CefString &suggested_name, CefRefPtr<CefBeforeDownloadCallback> callback) override;
         void OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, CefRefPtr<CefDownloadItemCallback> callback) override;
         void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) override;
-#if DEBUG
         bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) override;
-#endif
 };
 
 #endif
