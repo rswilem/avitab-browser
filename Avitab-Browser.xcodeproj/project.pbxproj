@@ -12,6 +12,8 @@
 		F61F8B1E2D0456D700E63C3F /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F66F91662D0332F600F84283 /* main.cpp */; };
 		F61F8B2F2D059ED500E63C3F /* button.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F61F8B262D059ED500E63C3F /* button.cpp */; };
 		F61F8B312D059ED500E63C3F /* image.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F61F8B282D059ED500E63C3F /* image.cpp */; };
+		F6251F65305D586F00A45AF0 /* user_agent.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6251F64305D586F00A45AF0 /* user_agent.cpp */; };
+		F6251F66305D586F00A45AF0 /* user_agent.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6251F64305D586F00A45AF0 /* user_agent.cpp */; };
 		F6251F72305D586F00A45AF0 /* plugins_menu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6251F71305D586F00A45AF0 /* plugins_menu.cpp */; };
 		F6251F73305D586F00A45AF0 /* plugins_menu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F6251F71305D586F00A45AF0 /* plugins_menu.cpp */; };
 		F62DB14C2D26A5290048FCC6 /* libcef_dll_wrapper.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F62DB14B2D26A5180048FCC6 /* libcef_dll_wrapper.a */; };
@@ -64,6 +66,8 @@
 		F61F8B272D059ED500E63C3F /* image.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = image.h; sourceTree = "<group>"; };
 		F61F8B282D059ED500E63C3F /* image.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = image.cpp; sourceTree = "<group>"; };
 		F61F8B2D2D059ED500E63C3F /* config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
+		F6251F63305D586F00A45AF0 /* user_agent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = user_agent.h; sourceTree = "<group>"; };
+		F6251F64305D586F00A45AF0 /* user_agent.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = user_agent.cpp; sourceTree = "<group>"; };
 		F6251F70305D586F00A45AF0 /* plugins_menu.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = plugins_menu.h; sourceTree = "<group>"; };
 		F6251F71305D586F00A45AF0 /* plugins_menu.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = plugins_menu.cpp; sourceTree = "<group>"; };
 		F62DB14B2D26A5180048FCC6 /* libcef_dll_wrapper.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcef_dll_wrapper.a; path = lib/mac_x64/cef/libcef_dll_wrapper.a; sourceTree = "<group>"; };
@@ -279,6 +283,8 @@
 				F6AF9EBC2D06F84900530297 /* dataref.cpp */,
 				F64EE9BF2D24130F000E68D2 /* drawing.h */,
 				F64EE9C02D24130F000E68D2 /* drawing.cpp */,
+				F6251F63305D586F00A45AF0 /* user_agent.h */,
+				F6251F64305D586F00A45AF0 /* user_agent.cpp */,
 				F6251F70305D586F00A45AF0 /* plugins_menu.h */,
 				F6251F71305D586F00A45AF0 /* plugins_menu.cpp */,
 			);
@@ -394,6 +400,7 @@
 				F61F8B1D2D04549C00E63C3F /* statusbar.cpp in Sources */,
 				F6AF9EC02D06F84900530297 /* path.cpp in Sources */,
 				F6EB776E2D22D687000B96F3 /* notification.cpp in Sources */,
+				F6251F66305D586F00A45AF0 /* user_agent.cpp in Sources */,
 				F6251F73305D586F00A45AF0 /* plugins_menu.cpp in Sources */,
 				F6D247C92D2FC4DB00C55144 /* cursor_mac.mm in Sources */,
 				F6D247CA2D2FC4DB00C55144 /* cursor_win.cpp in Sources */,
@@ -419,6 +426,7 @@
 				F64CFE622D2C31E8009BE82B /* statusbar.cpp in Sources */,
 				F64CFE632D2C31E8009BE82B /* path.cpp in Sources */,
 				F64CFE642D2C31E8009BE82B /* notification.cpp in Sources */,
+				F6251F65305D586F00A45AF0 /* user_agent.cpp in Sources */,
 				F6251F72305D586F00A45AF0 /* plugins_menu.cpp in Sources */,
 				F6D247C62D2FC4DB00C55144 /* cursor_mac.mm in Sources */,
 				F6D247C72D2FC4DB00C55144 /* cursor_win.cpp in Sources */,
