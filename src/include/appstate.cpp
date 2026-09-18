@@ -100,7 +100,7 @@ bool AppState::initialize() {
         mainMenuButton->setPosition(0.2f, 0.63f);
     } else {
         mainMenuButton = new Button(Path::getInstance()->pluginDirectory + "/assets/menu-item.png");
-        mainMenuButton->setPosition(0.2f, 0.568f);
+        mainMenuButton->setPosition(0.214f, 0.568f);
     }
 
     mainMenuButton->visible = false;
