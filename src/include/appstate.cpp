@@ -508,9 +508,89 @@ url_5=
                 browser->visibilityWillChange(true);
                 browserVisible = true;
             }
+        } else if (browser) {
+            // Hidden browser: rebuild so buttons pick up the new config too.
+            browser->destroy();
+            browser->initialize();
         }
     }
 
+    return true;
+}
+
+// Rewrites a single key in config.ini in place, keeping comments and order.
+// The key is appended to the section (or the section created) when missing.
+bool AppState::saveConfigValue(const std::string &section, const std::string &key, const std::string &value) {
+    if (Path::getInstance()->pluginDirectory.empty()) {
+        return false;
+    }
+
+    std::string filename = Path::getInstance()->pluginDirectory + "/config.ini";
+    std::ifstream input(filename);
+    if (!input.is_open()) {
+        Logger::getInstance()->critical("Could not open config file at %s for writing.\n", filename.c_str());
+        return false;
+    }
+
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(input, line)) {
+        lines.push_back(line);
+    }
+    input.close();
+
+    auto trim = [](const std::string &text) {
+        size_t start = text.find_first_not_of(" \t\r");
+        size_t end = text.find_last_not_of(" \t\r");
+        return start == std::string::npos ? std::string() : text.substr(start, end - start + 1);
+    };
+
+    bool inSection = false;
+    bool written = false;
+    size_t sectionEnd = lines.size();
+    for (size_t i = 0; i < lines.size(); ++i) {
+        std::string trimmed = trim(lines[i]);
+        if (!trimmed.empty() && trimmed.front() == '[') {
+            if (inSection) {
+                sectionEnd = i;
+                break;
+            }
+            inSection = trimmed == "[" + section + "]";
+            continue;
+        }
+
+        if (!inSection || trimmed.empty() || trimmed.front() == '#' || trimmed.front() == ';') {
+            continue;
+        }
+
+        size_t equals = trimmed.find('=');
+        if (equals != std::string::npos && trim(trimmed.substr(0, equals)) == key) {
+            lines[i] = key + "=" + value;
+            written = true;
+            break;
+        }
+    }
+
+    if (!written) {
+        if (!inSection && sectionEnd == lines.size()) {
+            lines.push_back("");
+            lines.push_back("[" + section + "]");
+            lines.push_back(key + "=" + value);
+        } else {
+            lines.insert(lines.begin() + sectionEnd, key + "=" + value);
+        }
+    }
+
+    std::ofstream output(filename, std::ios::trunc);
+    if (!output.is_open()) {
+        Logger::getInstance()->critical("Failed to write config file at %s\n", filename.c_str());
+        return false;
+    }
+
+    for (const std::string &entry : lines) {
+        output << entry << "\n";
+    }
+    output.close();
     return true;
 }
 

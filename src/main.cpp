@@ -15,12 +15,11 @@
 #include <XPLMPanelGraphics.h>
 #include <XPLMUtilities.h>
 #include <XPLMPlugin.h>
-#include <XPLMMenus.h>
 #include <XPLMProcessing.h>
-#include <XPLMMenus.h>
 #include <cmath>
 #include "drawing.h"
 #include "cursor.h"
+#include "plugins_menu.h"
 
 #if IBM
 #include <windows.h>
@@ -43,7 +42,9 @@ int draw(XPLMDrawingPhase inPhase, int inIsBefore, void * inRefcon);
 float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 float pumpBrowser(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 int mouseClicked(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus status, void* inRefcon);
-void menuAction(void* mRef, void* iRef);
+void showAboutWindow();
+void registerMenu();
+void syncMenuState();
 void registerWindow();
 void captureVrChanges();
 void captureClickEvents(bool enable);
@@ -142,10 +143,7 @@ PLUGIN_API int XPluginStart(char * name, char * sig, char * desc)
     XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);
     XPLMEnableFeature("XPLM_USE_NATIVE_WIDGET_WINDOWS", 1);
     
-    int item = XPLMAppendMenuItem(XPLMFindPluginsMenu(), FRIENDLY_NAME, nullptr, 1);
-    XPLMMenuID id = XPLMCreateMenu(FRIENDLY_NAME, XPLMFindPluginsMenu(), item, menuAction, nullptr);
-    XPLMAppendMenuItem(id, "Reload configuration", (void *)"ActionReloadConfig", 0);
-    XPLMAppendMenuItem(id, "About", (void *)"ActionAbout", 0);
+    registerMenu();
 
     XPLMRegisterFlightLoopCallback(update, REFRESH_INTERVAL_SECONDS_SLOW, nullptr);
     XPLMRegisterFlightLoopCallback(pumpBrowser, REFRESH_INTERVAL_SECONDS_FAST, nullptr);
@@ -189,6 +187,7 @@ PLUGIN_API void XPluginStop(void) {
     
     destroyCursor();
     captureClickEvents(false);
+    PluginsMenu::getInstance()->teardown();
     
     AppState::getInstance()->deinitialize();
     Logger::getInstance()->info("Plugin stopped\n");
@@ -220,6 +219,7 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params)
             }
 
             if (AppState::getInstance()->initialize()) {
+                syncMenuState();
                 registerWindow();
                 captureClickEvents(true);
 
@@ -249,64 +249,87 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID from, long msg, void* params)
     }
 }
 
-void menuAction(void* mRef, void* iRef) {
-    if (!strcmp((char *)iRef, "ActionAbout")) {
-        int winLeft, winTop, winRight, winBot;
-        XPLMGetScreenBoundsGlobal(&winLeft, &winTop, &winRight, &winBot);
-        XPLMCreateWindow_t params = {};
-        float screenWidth = fabs(winLeft - winRight);
-        float screenHeight = fabs(winTop - winBot);
-        float width = 450.0f;
-        float height = 180.0f;
+// The address bar item tracks config.hide_addressbar. loadConfig() rereads the
+// file on every aircraft load and reload, so the checkmark is synced from there.
+static int menuItemAddressBar = -1;
 
-        params.structSize = windowStructSize();
-        params.left = (int)(winLeft + (screenWidth - width) / 2);
-        params.right = params.left + width;
-        params.top = (int)(winTop - (screenHeight - height) / 2);
-        params.bottom = params.top - height;
-        params.visible = 1;
-        params.refcon = nullptr;
-        if (loadAboutFont()) {
-            params.contentType = xplm_WindowContentTypePanelGraphics;
-            params.drawWindowFunc = [](XPLMWindowID inWindowID, void *) {
-                int left, top, right, bottom;
-                XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
-                uint32_t white = panelGraphics.makeColor(1.0f, 1.0f, 1.0f, 1.0f);
-                for (const auto &[offset, text] : aboutLines) {
-                    panelGraphics.fontDrawString(aboutFont, white, 13.0f, left + 16.0f, top - offset, text, xplm_JustLeft);
-                }
-            };
-        } else {
-            params.drawWindowFunc = [](XPLMWindowID inWindowID, void *) {
-                XPLMSetGraphicsState(0, 0, 0, 0, 1, 0, 0);
-                int left, top, right, bottom;
-                XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
-                float color[] = {1.0f, 1.0f, 1.0f};
-                for (const auto &[offset, text] : aboutLines) {
-                    XPLMDrawString(color, left + 16.0f, top - offset, text, nullptr, xplmFont_Proportional);
-                }
-            };
-        }
-
-        params.handleMouseClickFunc = nullptr;
-        params.handleRightClickFunc = nullptr;
-        params.handleMouseWheelFunc = nullptr;
-        params.handleKeyFunc = nullptr;
-        params.handleCursorFunc = nullptr;
-        params.layer = xplm_WindowLayerFloatingWindows;
-        params.decorateAsFloatingWindow = xplm_WindowDecorationRoundRectangle;
-        XPLMWindowID aboutWindow = XPLMCreateWindowEx(&params);
-        XPLMSetWindowTitle(aboutWindow, FRIENDLY_NAME);
-        XPLMSetWindowPositioningMode(aboutWindow, Dataref::getInstance()->get<bool>("sim/graphics/VR/enabled") ? xplm_WindowVR : xplm_WindowPositionFree, -1);
-        XPLMBringWindowToFront(aboutWindow);
+void syncMenuState() {
+    if (menuItemAddressBar >= 0) {
+        PluginsMenu::getInstance()->setItemChecked(menuItemAddressBar, !AppState::getInstance()->config.hide_addressbar);
     }
-    else if (!strcmp((char *)iRef, "ActionReloadConfig")) {
+}
+
+void registerMenu() {
+    menuItemAddressBar = PluginsMenu::getInstance()->addItem("Show address bar", [](int itemId) {
+        bool hide = PluginsMenu::getInstance()->isItemChecked(itemId);
+        AppState::getInstance()->config.hide_addressbar = hide;
+        AppState::getInstance()->saveConfigValue("browser", "hide_addressbar", hide ? "true" : "false");
         AppState::getInstance()->loadConfig();
-        
+        syncMenuState();
+    }, true);
+    PluginsMenu::getInstance()->addSeparator();
+    PluginsMenu::getInstance()->addItem("Reload configuration", [](int) {
+        AppState::getInstance()->loadConfig();
+        syncMenuState();
+
         if (AppState::getInstance()->mainWindow) {
             XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
         }
+    });
+    PluginsMenu::getInstance()->addItem("About", [](int) {
+        showAboutWindow();
+    });
+}
+
+void showAboutWindow() {
+    int winLeft, winTop, winRight, winBot;
+    XPLMGetScreenBoundsGlobal(&winLeft, &winTop, &winRight, &winBot);
+    XPLMCreateWindow_t params = {};
+    float screenWidth = fabs(winLeft - winRight);
+    float screenHeight = fabs(winTop - winBot);
+    float width = 450.0f;
+    float height = 180.0f;
+
+    params.structSize = windowStructSize();
+    params.left = (int)(winLeft + (screenWidth - width) / 2);
+    params.right = params.left + width;
+    params.top = (int)(winTop - (screenHeight - height) / 2);
+    params.bottom = params.top - height;
+    params.visible = 1;
+    params.refcon = nullptr;
+    if (loadAboutFont()) {
+        params.contentType = xplm_WindowContentTypePanelGraphics;
+        params.drawWindowFunc = [](XPLMWindowID inWindowID, void *) {
+            int left, top, right, bottom;
+            XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
+            uint32_t white = panelGraphics.makeColor(1.0f, 1.0f, 1.0f, 1.0f);
+            for (const auto &[offset, text] : aboutLines) {
+                panelGraphics.fontDrawString(aboutFont, white, 13.0f, left + 16.0f, top - offset, text, xplm_JustLeft);
+            }
+        };
+    } else {
+        params.drawWindowFunc = [](XPLMWindowID inWindowID, void *) {
+            XPLMSetGraphicsState(0, 0, 0, 0, 1, 0, 0);
+            int left, top, right, bottom;
+            XPLMGetWindowGeometry(inWindowID, &left, &top, &right, &bottom);
+            float color[] = {1.0f, 1.0f, 1.0f};
+            for (const auto &[offset, text] : aboutLines) {
+                XPLMDrawString(color, left + 16.0f, top - offset, text, nullptr, xplmFont_Proportional);
+            }
+        };
     }
+
+    params.handleMouseClickFunc = nullptr;
+    params.handleRightClickFunc = nullptr;
+    params.handleMouseWheelFunc = nullptr;
+    params.handleKeyFunc = nullptr;
+    params.handleCursorFunc = nullptr;
+    params.layer = xplm_WindowLayerFloatingWindows;
+    params.decorateAsFloatingWindow = xplm_WindowDecorationRoundRectangle;
+    XPLMWindowID aboutWindow = XPLMCreateWindowEx(&params);
+    XPLMSetWindowTitle(aboutWindow, FRIENDLY_NAME);
+    XPLMSetWindowPositioningMode(aboutWindow, Dataref::getInstance()->get<bool>("sim/graphics/VR/enabled") ? xplm_WindowVR : xplm_WindowPositionFree, -1);
+    XPLMBringWindowToFront(aboutWindow);
 }
 
 void keyPressed(XPLMWindowID inWindowID, char key, XPLMKeyFlags flags, char virtualKey, void* inRefcon, int losingFocus) {
@@ -336,7 +359,7 @@ int mouseClicked(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus status, 
     
     float mouseX, mouseY;
     if (!Dataref::getInstance()->getMouse(&mouseX, &mouseY, x, y)) {
-        if (AppState::getInstance()->browserVisible && AppState::getInstance()->browser->hasInputFocus()) {
+        if (AppState::getInstance()->browserVisible && AppState::getInstance()->browser->wantsKeyboardFocus()) {
             AppState::getInstance()->browser->setFocus(false);
         }
         return 0;
@@ -435,8 +458,8 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
 #endif
     
     if (AppState::getInstance()->mainWindow) {
-        if (AppState::getInstance()->browser->hasInputFocus() != XPLMHasKeyboardFocus(AppState::getInstance()->mainWindow)) {
-            if (AppState::getInstance()->browser->hasInputFocus()) {
+        if (AppState::getInstance()->browser->wantsKeyboardFocus() != XPLMHasKeyboardFocus(AppState::getInstance()->mainWindow)) {
+            if (AppState::getInstance()->browser->wantsKeyboardFocus()) {
                 AppState::getInstance()->browser->setFocus(true);
                 XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
                 XPLMTakeKeyboardFocus(AppState::getInstance()->mainWindow);

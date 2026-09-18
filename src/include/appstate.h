@@ -110,6 +110,7 @@ public:
     void showNotification(Notification *notification);
     void executeDelayed(CallbackFunc func, float delaySeconds);
     bool loadConfig(bool isReloading = true);
+    bool saveConfigValue(const std::string &section, const std::string &key, const std::string &value);
 };
 
 #endif
