@@ -4,6 +4,8 @@
 #include "cursor.h"
 
 #include <include/cef_client.h>
+#include <include/cef_devtools_message_observer.h>
+#include <include/cef_registration.h>
 #include <include/cef_version.h>
 #include <mutex>
 #include <vector>
@@ -31,6 +33,8 @@ class BrowserHandler : public CefClient,
         bool popupShown;
         bool needsFullDraw;
         std::string *currentUrl;
+        CefRefPtr<CefDevToolsMessageObserver> devToolsLogger;
+        CefRefPtr<CefRegistration> devToolsRegistration;
         unsigned short windowWidth;
         unsigned short windowHeight;
         // CPU-side copy of the CEF framebuffer. OnPaint writes into this buffer;
@@ -44,12 +48,14 @@ class BrowserHandler : public CefClient,
         void copyPaintRect(const unsigned char *source, int sourceWidth, int sourceHeight, int sourceX, int sourceY, int destX, int destY, int rectWidth, int rectHeight);
         void injectAddressBar(CefRefPtr<CefBrowser> browser);
         void overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser);
+        void installNavigatorOverrides(CefRefPtr<CefBrowser> browser);
 
     public:
         BrowserHandler(int textureId, std::string *currentUrl, unsigned short width, unsigned short height);
         ~BrowserHandler();
 
         bool hasInputFocus;
+        bool hasTextSelection;
         CursorType cursorState;
         CefRefPtr<CefBrowser> browserInstance;
 
@@ -104,9 +110,12 @@ class BrowserHandler : public CefClient,
         void OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) override;
         void OnPopupSize(CefRefPtr<CefBrowser> browser, const CefRect &rect) override;
         void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect &rect) override;
+        bool GetRootScreenRect(CefRefPtr<CefBrowser> browser, CefRect &rect) override;
+        bool GetScreenInfo(CefRefPtr<CefBrowser> browser, CefScreenInfo &screen_info) override;
         void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString &title) override;
         void OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList &dirtyRects, const void *buffer, int width, int height) override;
         void OnVirtualKeyboardRequested(CefRefPtr<CefBrowser> browser, TextInputMode input_mode) override;
+        void OnTextSelectionChanged(CefRefPtr<CefBrowser> browser, const CefString& selected_text, const CefRange& selected_range) override;
         bool OnCursorChange(CefRefPtr<CefBrowser> browser, CefCursorHandle cursor, cef_cursor_type_t type, const CefCursorInfo &custom_cursor_info) override;
         void OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool isLoading, bool canGoBack, bool canGoForward) override;
         void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode errorCode, const CefString &errorText, const CefString &failedUrl) override;
@@ -118,7 +127,6 @@ class BrowserHandler : public CefClient,
         void OnBeforeDownload(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, const CefString &suggested_name, CefRefPtr<CefBeforeDownloadCallback> callback) override;
         void OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDownloadItem> download_item, CefRefPtr<CefDownloadItemCallback> callback) override;
         void OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int httpStatusCode) override;
-        cef_return_value_t OnBeforeResourceLoad(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, CefRefPtr<CefCallback> callback) override;
 #if DEBUG
         bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) override;
 #endif

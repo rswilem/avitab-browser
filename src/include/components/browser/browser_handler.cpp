@@ -7,6 +7,7 @@
 #include "appstate.h"
 #include "config.h"
 #include "path.h"
+#include "user_agent.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,6 +15,7 @@
 #include <include/base/cef_callback.h>
 #include <include/cef_app.h>
 #include <include/cef_base.h>
+#include <include/cef_devtools_message_observer.h>
 #include <include/cef_parser.h>
 #include <include/views/cef_browser_view.h>
 #include <include/views/cef_window.h>
@@ -21,6 +23,7 @@
 #include <include/wrapper/cef_helpers.h>
 #include <sstream>
 #include <string>
+#include <XPLMDisplay.h>
 #include <XPLMGraphics.h>
 #include <XPLMProcessing.h>
 #include <XPLMUtilities.h>
@@ -35,6 +38,7 @@ BrowserHandler::BrowserHandler(int aTextureId, std::string *aCurrentUrl, unsigne
     windowHeight = aHeight;
     cursorState = CursorDefault;
     hasInputFocus = false;
+    hasTextSelection = false;
     browserInstance = nullptr;
     paintBuffer.resize((size_t) windowWidth * windowHeight * 4, 0xFF);
     paintDirty = false;
@@ -49,17 +53,46 @@ BrowserHandler::~BrowserHandler() {
     browserInstance = nullptr;
     cursorState = CursorDefault;
     hasInputFocus = false;
+    hasTextSelection = false;
 }
 
 void BrowserHandler::destroy() {
     textureId = 0;
     cursorState = CursorDefault;
     hasInputFocus = false;
+    hasTextSelection = false;
+}
+
+// Logs the outcome of every DevTools method we send, so a refused override
+// or injection shows up in the log instead of failing silently.
+class DevToolsResultLogger : public CefDevToolsMessageObserver {
+    IMPLEMENT_REFCOUNTING(DevToolsResultLogger);
+
+    public:
+        void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success, const void *result, size_t result_size) override {
+            std::string payload(static_cast<const char *>(result), result_size);
+            Logger::getInstance()->info("[DevTools] id=%d %s: %s\n", message_id, success ? "ok" : "ERROR", payload.c_str());
+        }
+};
+
+static void sendDevTools(CefRefPtr<CefBrowser> browser, const char *method, CefRefPtr<CefDictionaryValue> params) {
+    int id = browser->GetHost()->ExecuteDevToolsMethod(0, method, params);
+    Logger::getInstance()->info("[DevTools] %s -> id=%d\n", method, id);
 }
 
 void BrowserHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     browserInstance = browser;
     browserInstance->GetHost()->SetAudioMuted(AppState::getInstance()->config.audio_muted);
+
+    // The browser is created on about:blank so the UA override is in place
+    // before the first real navigation and its client hints go out.
+    devToolsLogger = new DevToolsResultLogger();
+    devToolsRegistration = browser->GetHost()->AddDevToolsMessageObserver(devToolsLogger);
+    UserAgent::applyOverride(browser);
+    installNavigatorOverrides(browser);
+    if (currentUrl && !currentUrl->empty()) {
+        browser->GetMainFrame()->LoadURL(*currentUrl);
+    }
 
     notifyVisible();
 }
@@ -135,6 +168,30 @@ void BrowserHandler::OnPopupSize(CefRefPtr<CefBrowser> browser, const CefRect &r
 
 void BrowserHandler::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect &rect) {
     rect = CefRect(0, 0, windowWidth, windowHeight);
+}
+
+// Without these CEF reports a 0-bit colour depth and a screen identical to the
+// viewport, both of which bot checks read as headless. Report the sim's screen
+// and a window slightly taller than the view, like a browser with a toolbar.
+bool BrowserHandler::GetRootScreenRect(CefRefPtr<CefBrowser> browser, CefRect &rect) {
+    const int toolbarHeight = 87;
+    rect = CefRect(0, 0, windowWidth, windowHeight + toolbarHeight);
+    return true;
+}
+
+bool BrowserHandler::GetScreenInfo(CefRefPtr<CefBrowser> browser, CefScreenInfo &screen_info) {
+    int screenWidth = 0, screenHeight = 0;
+    XPLMGetScreenSize(&screenWidth, &screenHeight);
+    screenWidth = std::max<int>(screenWidth, windowWidth);
+    screenHeight = std::max<int>(screenHeight, windowHeight);
+
+    screen_info.device_scale_factor = 1.0f;
+    screen_info.depth = 24;
+    screen_info.depth_per_component = 8;
+    screen_info.is_monochrome = false;
+    screen_info.rect = CefRect(0, 0, screenWidth, screenHeight);
+    screen_info.available_rect = CefRect(0, 0, screenWidth, screenHeight);
+    return true;
 }
 
 void BrowserHandler::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString &title) {
@@ -265,12 +322,18 @@ void BrowserHandler::OnVirtualKeyboardRequested(CefRefPtr<CefBrowser> browser, T
     hasInputFocus = input_mode != CEF_TEXT_INPUT_MODE_NONE;
 }
 
+void BrowserHandler::OnTextSelectionChanged(CefRefPtr<CefBrowser> browser, const CefString& selected_text, const CefRange& selected_range) {
+    hasTextSelection = !selected_text.empty();
+}
+
 void BrowserHandler::OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool isLoading, bool canGoBack, bool canGoForward) {
     AppState::getInstance()->statusbar->loading = isLoading;
 
-    if (!isLoading) {
+    // Skip the about:blank the browser starts on, so the homepage stays current.
+    std::string url = browser->GetMainFrame()->GetURL().ToString();
+    if (!isLoading && url != "about:blank") {
         injectAddressBar(browser);
-        *currentUrl = browser->GetMainFrame()->GetURL().ToString();
+        *currentUrl = url;
     }
 }
 
@@ -431,20 +494,6 @@ void BrowserHandler::OnDownloadUpdated(CefRefPtr<CefBrowser> browser, CefRefPtr<
     }
 }
 
-cef_return_value_t BrowserHandler::OnBeforeResourceLoad(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, CefRefPtr<CefCallback> callback) {
-    CefRequest::HeaderMap headers;
-    request->GetHeaderMap(headers);
-    auto it = headers.find("User-Agent");
-    if (it == headers.end()) {
-        return RV_CONTINUE;
-    }
-
-    headers.erase("User-Agent");
-    headers.insert(std::make_pair("User-Agent", AppState::getInstance()->config.user_agent));
-    request->SetHeaderMap(headers);
-    return RV_CONTINUE;
-}
-
 #if DEBUG
 bool BrowserHandler::OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request, bool user_gesture, bool is_redirect) {
     if (frame->IsMain()) {
@@ -461,69 +510,78 @@ void BrowserHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
         return;
     }
 
+    // Diagnostic: report from inside the page whether the early injection ran.
+    CefRefPtr<CefDictionaryValue> probe = CefDictionaryValue::Create();
+    probe->SetString("expression", R"(JSON.stringify({
+        href: location.href, installed: window.avitab_overrides_installed,
+        outer: [outerWidth, outerHeight], inner: [innerWidth, innerHeight],
+        screen: [screen.width, screen.height, screen.availWidth, screen.availHeight, screen.colorDepth], dpr: devicePixelRatio,
+        visibility: document.visibilityState, focus: document.hasFocus(),
+        uaData: navigator.userAgentData ? navigator.userAgentData.brands : null, platform: navigator.platform,
+        cores: navigator.hardwareConcurrency, mem: navigator.deviceMemory, langs: navigator.languages,
+        chrome: typeof window.chrome, webdriver: navigator.webdriver, plugins: navigator.plugins.length,
+        cookies: navigator.cookieEnabled, storage: (function(){ try { localStorage.setItem('_a','1'); return true; } catch(e) { return e.name; } })(),
+        notif: window.Notification ? Notification.permission : 'n/a',
+        turnstile: Array.from(document.querySelectorAll('iframe')).map(f => f.src.slice(0, 60))
+    }))");
+    probe->SetBool("returnByValue", true);
+    sendDevTools(browser, "Runtime.evaluate", probe);
+
     overrideGeolocationAndNavigator(browser);
     injectAddressBar(browser);
 }
 
+// Only geolocation is touched: the permissions query wraps the native one
+// instead of replacing it, since bot checks flag a non-native permissions.query
+// and a synthetic load event.
+static const std::string navigatorOverrideScript = R"(
+        (function() {
+            if (window.avitab_overrides_installed) { return; }
+            window.avitab_overrides_installed = true;
+            window.avitab_watchers = (window.avitab_watchers || {});
+            Object.defineProperty(navigator, 'onLine', { get: function() { return true; }, configurable: true });
+            if (!window.Notification) {
+                function Notification() { throw new TypeError('Illegal constructor'); }
+                Notification.permission = 'default';
+                Notification.maxActions = 2;
+                Notification.requestPermission = function(cb) { if (cb) { cb('denied'); } return Promise.resolve('denied'); };
+                window.Notification = Notification;
+            }
+            var nativeQuery = navigator.permissions.query.bind(navigator.permissions);
+            navigator.permissions.query = function(options) {
+                if (options && options.name === 'geolocation') { return Promise.resolve({ state: 'granted', onchange: null }); }
+                if (options && options.name === 'notifications' && window.Notification) {
+                    var state = Notification.permission === 'default' ? 'prompt' : Notification.permission;
+                    return Promise.resolve({ state: state, onchange: null });
+                }
+                return nativeQuery(options);
+            };
+            navigator.geolocation.watchPosition = function(success, error, options) {
+                var id = Math.round(Date.now() / 1000);
+                window.avitab_watchers[id] = success;
+                if (window.avitab_location) { success(window.avitab_location); }
+                return id;
+            };
+            navigator.geolocation.clearWatch = function(id) { delete window.avitab_watchers[id]; };
+            navigator.geolocation.getCurrentPosition = function(success, error, options) {
+                if (window.avitab_location) { success(window.avitab_location); }
+                else { navigator.geolocation.watchPosition(success, error, options); }
+            };
+        })();
+    )";
+
+// Registered once through DevTools so it runs before any page script, in
+// every frame. The ExecuteJavaScript fallback below covers the case where the
+// DevTools call is refused; the script itself is idempotent.
+void BrowserHandler::installNavigatorOverrides(CefRefPtr<CefBrowser> browser) {
+    sendDevTools(browser, "Page.enable", nullptr);
+    CefRefPtr<CefDictionaryValue> params = CefDictionaryValue::Create();
+    params->SetString("source", navigatorOverrideScript);
+    sendDevTools(browser, "Page.addScriptToEvaluateOnNewDocument", params);
+}
+
 void BrowserHandler::overrideGeolocationAndNavigator(CefRefPtr<CefBrowser> browser) {
-    std::string userAgent = AppState::getInstance()->config.user_agent;
-
-    // This script is injected twice per navigation (OnDocumentAvailableInMainFrame
-    // and OnLoadEnd). Re-applying the overrides is harmless, but the synthetic
-    // 'load' event must fire at most once, and only when the overrides arrived
-    // after the document already finished loading (so late-initialized pages
-    // re-run their setup against the overridden APIs). Unconditionally
-    // re-dispatching it made pages double-fire their load handlers, duplicating
-    // timers and requests.
-    std::string javascript =
-        "var avitab_should_refire_load = !window.avitab_overrides_installed && document.readyState === 'complete';"
-        "window.avitab_overrides_installed = true;"
-        "function setUserAgent(window, userAgent) {"
-        "    try {"
-        "        var userAgentProp = Object.getOwnPropertyDescriptor(navigator, 'userAgent');"
-        "        if (userAgentProp && userAgentProp.configurable) {"
-        "            Object.defineProperty(navigator, 'userAgent', {"
-        "                get: function () { return userAgent; },"
-        "                configurable: true"
-        "            });"
-        "        } else if (navigator.__defineGetter__) {"
-        "            navigator.__defineGetter__('userAgent', function () {"
-        "                return userAgent;"
-        "            });"
-        "        }"
-        "    } catch (e) {}"
-        "}"
-        "window.avitab_watchers = (window.avitab_watchers || {});"
-        "Object.defineProperty(navigator, 'onLine', {"
-        "    get: function() { return true; },"
-        "    configurable: true"
-        "});"
-        "navigator.permissions.query = (options) => {"
-        "    return Promise.resolve({ state: 'granted' });"
-        "};"
-        "navigator.geolocation.watchPosition = (success, error, options) => {"
-        "    window.avitab_watchers = (window.avitab_watchers || {});"
-        "    const id = Math.round(Date.now() / 1000);"
-        "    window.avitab_watchers[id] = success;"
-        "    if (window.avitab_location) { success(window.avitab_location); }"
-        "    return id;"
-        "};"
-        "navigator.geolocation.clearWatch = (id) => {"
-        "    if (!window.avitab_watchers) { return; }"
-        "    delete window.avitab_watchers[id];"
-        "};"
-        "navigator.geolocation.getCurrentPosition = (success, error, options) => {"
-        "    if (window.avitab_location) {"
-        "        success(window.avitab_location);"
-        "    } else {"
-        "        const wid = navigator.geolocation.watchPosition(success, error, options);"
-        "    }"
-        "};"
-        "setUserAgent(window, \"" +
-        userAgent + "\");"
-                    "if (avitab_should_refire_load) { window.dispatchEvent(new Event('load')); }";
-
-    browser->GetMainFrame()->ExecuteJavaScript(javascript.c_str(), browser->GetMainFrame()->GetURL(), 0);
+    browser->GetMainFrame()->ExecuteJavaScript(navigatorOverrideScript, browser->GetMainFrame()->GetURL(), 0);
 }
 
 void BrowserHandler::injectAddressBar(CefRefPtr<CefBrowser> browser) {

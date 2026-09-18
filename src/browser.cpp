@@ -6,6 +6,7 @@
 #include "dataref.h"
 #include "drawing.h"
 #include "path.h"
+#include "user_agent.h"
 
 #include <chrono>
 #include <cmath>
@@ -532,6 +533,16 @@ bool Browser::hasInputFocus() {
     return handler->hasInputFocus;
 }
 
+// A mouse selection also needs the sim's keyboard focus, otherwise copy shortcuts
+// never reach the plugin.
+bool Browser::wantsKeyboardFocus() {
+    if (!textureId || !handler || !handler->browserInstance) {
+        return false;
+    }
+
+    return handler->hasInputFocus || handler->hasTextSelection;
+}
+
 void Browser::setFocus(bool focus) {
     if (!textureId || !handler || !handler->browserInstance) {
         return;
@@ -827,7 +838,8 @@ bool Browser::createBrowser() {
     //window_info.shared_texture_enabled
     window_info.windowless_rendering_enabled = true;
 
-    bool browserCreated = CefBrowserHost::CreateBrowser(window_info, handler, currentUrl, browser_settings, nullptr, request_context);
+    // Start blank; OnAfterCreated applies the UA override and then loads currentUrl.
+    bool browserCreated = CefBrowserHost::CreateBrowser(window_info, handler, "about:blank", browser_settings, nullptr, request_context);
     if (!browserCreated) {
         AppState::getInstance()->showNotification(new Notification("Error creating browser", "An error occured while starting the browser.\nPlease verify if there are any updates for the " FRIENDLY_NAME " plugin and try again."));
     }
@@ -852,6 +864,7 @@ bool Browser::initializeCef(const std::string &cachePath) {
     CefSettings settings;
     settings.windowless_rendering_enabled = true;
     CefString(&settings.cache_path) = cachePath;
+    CefString(&settings.user_agent) = UserAgent::configured();
 
 #if IBM
     CefMainArgs main_args(GetModuleHandle(nullptr));

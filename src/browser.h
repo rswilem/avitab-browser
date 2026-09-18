@@ -39,6 +39,7 @@ class Browser {
         void draw();
         void loadUrl(std::string url);
         bool hasInputFocus();
+        bool wantsKeyboardFocus();
         void setFocus(bool focus);
         void mouseMove(float normalizedX, float normalizedY);
         bool click(XPLMMouseStatus status, float normalizedX, float normalizedY);
