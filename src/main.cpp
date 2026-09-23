@@ -333,6 +333,16 @@ void showAboutWindow() {
 }
 
 void keyPressed(XPLMWindowID inWindowID, char key, XPLMKeyFlags flags, char virtualKey, void* inRefcon, int losingFocus) {
+    // A selection alone holds the sim's keyboard only for copy shortcuts. Any
+    // key without a modifier belongs to the aircraft, so hand the keyboard back
+    // instead of swallowing flaps, gear and the rest.
+    bool modifierHeld = (flags & (xplm_ControlFlag | xplm_OptionAltFlag)) != 0;
+    if (!losingFocus && !modifierHeld && !AppState::getInstance()->browser->hasInputFocus()) {
+        AppState::getInstance()->browser->setFocus(false);
+        XPLMTakeKeyboardFocus(0);
+        return;
+    }
+
     if ((flags & xplm_DownFlag) == xplm_DownFlag) {
         pressedKeyCode = key;
         pressedVirtualKeyCode = virtualKey;
@@ -447,19 +457,13 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
     AppState::getInstance()->statusbar->update();
 
     AppState::getInstance()->browser->update();
-    if (!AppState::getInstance()->browserVisible) {
-        return REFRESH_INTERVAL_SECONDS_FAST;
-    }
-    
-#ifndef DEBUG
-    if (pressedKeyTime > 0 && XPLMGetElapsedTime() > pressedKeyTime + 0.3f) {
-        AppState::getInstance()->browser->key(pressedKeyCode, pressedVirtualKeyCode);
-    }
-#endif
-    
+
+    // Runs before the visibility check so hiding the browser also gives the
+    // keyboard back.
     if (AppState::getInstance()->mainWindow) {
-        if (AppState::getInstance()->browser->wantsKeyboardFocus() != XPLMHasKeyboardFocus(AppState::getInstance()->mainWindow)) {
-            if (AppState::getInstance()->browser->wantsKeyboardFocus()) {
+        bool wantsFocus = AppState::getInstance()->browserVisible && AppState::getInstance()->browser->wantsKeyboardFocus();
+        if (wantsFocus != (XPLMHasKeyboardFocus(AppState::getInstance()->mainWindow) != 0)) {
+            if (wantsFocus) {
                 AppState::getInstance()->browser->setFocus(true);
                 XPLMBringWindowToFront(AppState::getInstance()->mainWindow);
                 XPLMTakeKeyboardFocus(AppState::getInstance()->mainWindow);
@@ -471,6 +475,16 @@ float update(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoo
         }
     }
 
+    if (!AppState::getInstance()->browserVisible) {
+        return REFRESH_INTERVAL_SECONDS_FAST;
+    }
+    
+#ifndef DEBUG
+    if (pressedKeyTime > 0 && XPLMGetElapsedTime() > pressedKeyTime + 0.3f) {
+        AppState::getInstance()->browser->key(pressedKeyCode, pressedVirtualKeyCode);
+    }
+#endif
+    
     return REFRESH_INTERVAL_SECONDS_FAST;
 }
 

@@ -549,10 +549,21 @@ void Browser::setFocus(bool focus) {
     }
 
     handler->browserInstance->GetHost()->SetFocus(focus);
-    if (!focus && handler->hasInputFocus) {
-        std::string script = "document.activeElement?.blur();";
-        handler->browserInstance->GetMainFrame()->ExecuteJavaScript(script, handler->browserInstance->GetMainFrame()->GetURL(), 0);
+    if (focus) {
+        return;
     }
+
+    if (!handler->hasInputFocus && !handler->hasTextSelection) {
+        return;
+    }
+
+    // Dropping focus has to drop the selection with it, otherwise
+    // wantsKeyboardFocus stays true and the next update takes the sim's
+    // keyboard straight back, leaving the aircraft without its keys.
+    std::string script = "document.activeElement?.blur(); window.getSelection()?.removeAllRanges();";
+    handler->browserInstance->GetMainFrame()->ExecuteJavaScript(script, handler->browserInstance->GetMainFrame()->GetURL(), 0);
+    handler->hasInputFocus = false;
+    handler->hasTextSelection = false;
 }
 
 void Browser::key(unsigned char key, unsigned char virtualKey, XPLMKeyFlags flags) {

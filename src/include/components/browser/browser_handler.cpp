@@ -331,6 +331,12 @@ void BrowserHandler::OnTextSelectionChanged(CefRefPtr<CefBrowser> browser, const
 void BrowserHandler::OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool isLoading, bool canGoBack, bool canGoForward) {
     AppState::getInstance()->statusbar->loading = isLoading;
 
+    // A new document has neither the old selection nor the old field focus.
+    if (isLoading) {
+        hasInputFocus = false;
+        hasTextSelection = false;
+    }
+
     // Skip the about:blank the browser starts on, so the homepage stays current.
     std::string url = browser->GetMainFrame()->GetURL().ToString();
     if (!isLoading && url != "about:blank") {
