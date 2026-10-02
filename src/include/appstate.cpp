@@ -699,10 +699,12 @@ void AppState::determineAircraftVariant() {
         return;
     }
 
-    std::string levelupTextFile = Path::getInstance()->aircraftDirectory + "/LU & Zibo Version.txt";
-    if (std::filesystem::exists(levelupTextFile)) {
-        aircraftVariant = VariantLevelUp737;
-        return;
+    // Older LevelUp releases ship "LU & Zibo Version.txt", V2.S1.50 and later ship LU_Changelog.txt instead.
+    for (const char *levelupMarker : {"/LU & Zibo Version.txt", "/LU_Changelog.txt", "/LU_737NG README.pdf"}) {
+        if (std::filesystem::exists(Path::getInstance()->aircraftDirectory + levelupMarker)) {
+            aircraftVariant = VariantLevelUp737;
+            return;
+        }
     }
 
     std::string ziboFolder = Path::getInstance()->aircraftDirectory + "/plugins/zibomod";

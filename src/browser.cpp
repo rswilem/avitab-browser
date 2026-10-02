@@ -80,7 +80,7 @@ void Browser::initialize() {
             return true;
         });
     } else if (AppState::getInstance()->aircraftVariant == VariantLevelUp737) {
-        offsetStart = 0.05f;
+        offsetStart = 0.03f;
         offsetEnd = 1.0f;
 
         backButton = new Button(0.27f, 0.10f);
